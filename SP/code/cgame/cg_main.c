@@ -302,7 +302,7 @@ cvarTable_t cvarTable[] = {
 	{ &cg_zoomStepSnooper, "cg_zoomStepSnooper", "5", CVAR_ARCHIVE },
 	{ &cg_zoomStepFG, "cg_zoomStepFG", "10", CVAR_ARCHIVE },          //----(SA)	added
 	{ &cg_fov, "cg_fov", "90", CVAR_ARCHIVE },	// NOTE: there is already a dmflag (DF_FIXED_FOV) to allow server control of this cheat
-	{ &cg_fixedAspect, "cg_fixedAspect", "0", CVAR_ARCHIVE | CVAR_LATCH }, // Essentially the same as setting DF_FIXED_FOV for widescreen aspects
+	{ &cg_fixedAspect, "cg_fixedAspect", "0", CVAR_ARCHIVE }, // Auto-set based on screen aspect ratio
 	{ &cg_fixedAspectFOV, "cg_fixedAspectFOV", "1", CVAR_ARCHIVE },
 	{ &cg_oldWolfUI, "cg_oldWolfUI", "0", CVAR_ARCHIVE },
 	{ &cg_drawStatusHead, "cg_drawStatusHead", "0", CVAR_ARCHIVE },
@@ -2312,6 +2312,16 @@ void CG_Init( int serverMessageNum, int serverCommandSequence ) {
 
 	// get the rendering configuration from the client system
 	trap_GetGlconfig( &cgs.glconfig );
+
+	// Auto-detect widescreen aspect ratio
+	if ( cgs.glconfig.vidWidth * 480 > cgs.glconfig.vidHeight * 640 ) {
+		trap_Cvar_Set( "cg_fixedAspect", "2" );
+		cg_fixedAspect.integer = 2;
+	} else {
+		trap_Cvar_Set( "cg_fixedAspect", "0" );
+		cg_fixedAspect.integer = 0;
+	}
+
 	if ( cg_fixedAspect.integer ) {
 		cgs.screenXScaleStretch = cgs.glconfig.vidWidth * (1.0/640.0);
 		cgs.screenYScaleStretch = cgs.glconfig.vidHeight * (1.0/480.0);

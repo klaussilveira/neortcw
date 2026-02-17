@@ -7742,7 +7742,7 @@ cvarTable_t cvarTable[] = {
 	{ &ui_autoactivate, "cg_autoactivate", "1", CVAR_ARCHIVE },
 	// END JOSEPH
 
-	{ &ui_fixedAspect, "cg_fixedAspect", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &ui_fixedAspect, "cg_fixedAspect", "0", CVAR_ARCHIVE },
 	{ &ui_fixedAspectFOV, "cg_fixedAspectFOV", "1", CVAR_ARCHIVE },
 
 	{ &ui_server1, "server1", "", CVAR_ARCHIVE },
