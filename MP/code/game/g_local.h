@@ -513,7 +513,6 @@ typedef struct {
 	vec3_t origin;
 
 	int time;
-	int servertime;
 } clientMarker_t;
 
 #define MAX_CLIENT_MARKERS 20

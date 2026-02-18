@@ -1123,8 +1123,7 @@ void ClientThink_real( gentity_t *ent ) {
 	// NOTE: now copy the exact origin over otherwise clients can be snapped into solid
 	VectorCopy( ent->client->ps.origin, ent->r.currentOrigin );
 
-	// store the client's current position for antilag traces
-	G_StoreClientPosition( ent );
+	// antilag markers are now stored in ClientEndFrame()
 
 	// touch other objects
 	ClientImpacts( ent, &pm );
@@ -1583,6 +1582,10 @@ void ClientEndFrame( gentity_t *ent ) {
 	}
 
 	//SendPendingPredictableEvents( &ent->client->ps );
+
+	// store the client's position for antilag traces
+	// this is right before the snapshot is generated, so it matches what clients see
+	G_StoreClientPosition( ent );
 
 	// DHM - Nerve :: If it's been a couple frames since being revived, and props_frame_state
 	//					wasn't reset, go ahead and reset it

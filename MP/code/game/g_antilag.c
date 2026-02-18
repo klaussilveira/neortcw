@@ -2,9 +2,9 @@
 ===========================================================================
 
 Return to Castle Wolfenstein multiplayer GPL Source Code
-Copyright (C) 1999-2010 id Software LLC, a ZeniMax Media company. 
+Copyright (C) 1999-2010 id Software LLC, a ZeniMax Media company.
 
-This file is part of the Return to Castle Wolfenstein multiplayer GPL Source Code (RTCW MP Source Code).  
+This file is part of the Return to Castle Wolfenstein multiplayer GPL Source Code (RTCW MP Source Code).
 
 RTCW MP Source Code is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,41 +35,22 @@ If you have questions concerning this license or the applicable additional terms
 		( x->client->ps.pm_flags & PMF_LIMBO ) == 0	\
 		)
 
-// OSP -
-//	Aside from the inline edits, I also changed the client loops to poll only
-//  the active client slots on the server, rather than looping through every
-//  potential (and usually unused) slot.
-//
-
+// Called from ClientEndFrame() -- stores the client's position at level.time,
+// which is the position that will appear in the snapshot clients receive.
 void G_StoreClientPosition( gentity_t* ent ) {
-	int top, currentTime;
+	int top;
 
 	if ( !IS_ACTIVE( ent ) ) {
 		return;
 	}
 
-	top = ent->client->topMarker;
+	top = ( ent->client->topMarker + 1 ) % MAX_CLIENT_MARKERS;
+	ent->client->topMarker = top;
 
-	// new frame, mark the old marker's time as the end of the last frame
-	if ( ent->client->clientMarkers[top].time < level.time ) {
-		ent->client->clientMarkers[top].time = level.previousTime;
-		top = ent->client->topMarker = ent->client->topMarker == MAX_CLIENT_MARKERS - 1 ? 0 : ent->client->topMarker + 1;
-	}
-
-	currentTime = level.previousTime + trap_Milliseconds() - level.frameTime;
-
-	if ( currentTime > level.time ) {
-		// owwie, we just went into the next frame... let's push them back
-		currentTime = level.time;
-	}
-
-	VectorCopy( ent->r.mins,                        ent->client->clientMarkers[top].mins );
-	VectorCopy( ent->r.maxs,                        ent->client->clientMarkers[top].maxs );
-	VectorCopy( ent->r.currentOrigin,               ent->client->clientMarkers[top].origin );
-
-	// OSP - these timers appear to be questionable
-	ent->client->clientMarkers[top].servertime =    level.time;
-	ent->client->clientMarkers[top].time =          currentTime;
+	VectorCopy( ent->r.mins,            ent->client->clientMarkers[top].mins );
+	VectorCopy( ent->r.maxs,            ent->client->clientMarkers[top].maxs );
+	VectorCopy( ent->r.currentOrigin,   ent->client->clientMarkers[top].origin );
+	ent->client->clientMarkers[top].time = level.time;
 }
 
 static void G_AdjustSingleClientPosition( gentity_t* ent, int time ) {
@@ -77,7 +58,7 @@ static void G_AdjustSingleClientPosition( gentity_t* ent, int time ) {
 
 	if ( time > level.time ) {
 		time = level.time;
-	} // no lerping forward....
+	}
 
 	i = j = ent->client->topMarker;
 	do {
@@ -89,19 +70,14 @@ static void G_AdjustSingleClientPosition( gentity_t* ent, int time ) {
 		i = ( ( i > 0 ) ? ( i ) : ( MAX_CLIENT_MARKERS ) ) - 1;
 	} while ( i != ent->client->topMarker );
 
-	if ( i == j ) { // oops, no valid stored markers
+	if ( i == j ) {
 		return;
 	}
 
-	// OSP - I don't trust this caching, as the "warped" player's position updates potentially
-	//       wont be counted after his think until the next server frame, which will result
-	//       in a bad backupMarker
-//	if( ent->client->backupMarker.time != level.time ) {
-//		ent->client->backupMarker.time = level.time;
+	// save current position for restore
 	VectorCopy( ent->r.currentOrigin,    ent->client->backupMarker.origin );
 	VectorCopy( ent->r.mins,             ent->client->backupMarker.mins );
 	VectorCopy( ent->r.maxs,             ent->client->backupMarker.maxs );
-//	}
 
 	if ( i != ent->client->topMarker ) {
 		float frac = ( (float)( ent->client->clientMarkers[j].time - time ) ) / ( ent->client->clientMarkers[j].time - ent->client->clientMarkers[i].time );
@@ -119,17 +95,11 @@ static void G_AdjustSingleClientPosition( gentity_t* ent, int time ) {
 }
 
 static void G_ReAdjustSingleClientPosition( gentity_t* ent ) {
-
-	// OSP - I don't trust this caching, as the "warped" player's position updates potentially
-	//       wont be counted after his think until the next server frame
-//	if( ent->client->backupMarker.time == level.time) {
 	VectorCopy( ent->client->backupMarker.origin,       ent->r.currentOrigin );
 	VectorCopy( ent->client->backupMarker.mins,         ent->r.mins );
 	VectorCopy( ent->client->backupMarker.maxs,         ent->r.maxs );
-	ent->client->backupMarker.servertime =  0;
 
 	trap_LinkEntity( ent );
-//	}
 }
 
 void G_AdjustClientPositions( gentity_t* ent, int time, qboolean forward ) {
@@ -145,29 +115,6 @@ void G_AdjustClientPositions( gentity_t* ent, int time, qboolean forward ) {
 		}
 	}
 }
-
-/*
-void G_ResetMarkers( gentity_t* ent ) {
-	int i, time;
-	char buffer[256];
-	float period;
-
-	trap_Cvar_VariableStringBuffer( "sv_fps", buffer, sizeof( buffer ) - 1 );
-
-	period = atoi( buffer );
-	period = ( period == 0 ) ? 50.0f : 1000.f / period;
-
-	ent->client->topMarker = MAX_CLIENT_MARKERS - 1;
-	for ( i = MAX_CLIENT_MARKERS, time = level.time; i >= 0; i--, time -= period ) {
-		ent->client->clientMarkers[i].servertime =  time;
-		ent->client->clientMarkers[i].time =        time;
-
-		VectorCopy( ent->r.mins,            ent->client->clientMarkers[i].mins );
-		VectorCopy( ent->r.maxs,            ent->client->clientMarkers[i].maxs );
-		VectorCopy( ent->r.currentOrigin,   ent->client->clientMarkers[i].origin );
-	}
-}
-*/
 
 void G_ResetMarkers(gentity_t *ent)
 {
@@ -223,63 +170,55 @@ int G_SwitchBodyPartEntity( gentity_t* ent ) {
 	if ( ent->s.eType == ET_TEMPHEAD ) {
 		return ent->parent - g_entities;
 	}
+
 	return ent - g_entities;
 }
 
-#define POSITION_READJUST											\
-	if ( res != results->entityNum ) {							   \
-		VectorSubtract( end, start, dir );						  \
-		VectorNormalizeFast( dir );								  \
-																	\
-		VectorMA( results->endpos, -1, dir, results->endpos );	  \
-		results->entityNum = res;								\
-	}
+// Handles hit-box remapping and position backing-off
+static void ResolveTraceCollision( trace_t *results, const vec3_t start, const vec3_t end ) {
+    // Check if the body part entity needs to be mapped back to the main entity
+    int actualEntityNum = G_SwitchBodyPartEntity( &g_entities[results->entityNum] );
 
-// Run a trace with players in historical positions.
+    if ( actualEntityNum != results->entityNum ) {
+        vec3_t dir;
+
+        // Calculate direction of the trace
+        VectorSubtract( end, start, dir );
+        VectorNormalizeFast( dir );
+
+        // Back off the hit position by 1 unit to prevent sticking/clipping
+        // issues when the entity index changes.
+        VectorMA( results->endpos, -1, dir, results->endpos );
+
+        // Update the result with the correct entity index
+        results->entityNum = actualEntityNum;
+    }
+}
+
+static void PerformBodyPartTrace( gentity_t *ent, trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask ) {
+    G_AttachBodyParts( ent );
+
+    trap_Trace( results, start, mins, maxs, end, passEntityNum, contentmask );
+    ResolveTraceCollision( results, start, end );
+
+    G_DettachBodyParts();
+}
+
 void G_HistoricalTrace( gentity_t* ent, trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentmask ) {
-	trace_t tr;
-	gentity_t *other;
-	int res;
-	vec3_t dir;
 
-	if ( !g_antilag.integer || !ent->client ) {
-		G_AttachBodyParts( ent ) ;
+    // Determine if we need to rewind time
+    qboolean useAntilag = ( g_antilag.integer && ent->client );
 
-		trap_Trace( results, start, mins, maxs, end, passEntityNum, contentmask );
+    if ( useAntilag ) {
+        // Rewind players to positions at the time the shot was fired
+        G_AdjustClientPositions( ent, ent->client->pers.cmd.serverTime, qtrue );
+    }
 
-		res = G_SwitchBodyPartEntity( &g_entities[results->entityNum] );
-		POSITION_READJUST
+    // Run the actual trace
+    PerformBodyPartTrace( ent, results, start, mins, maxs, end, passEntityNum, contentmask );
 
-		G_DettachBodyParts();
-		return;
-	}
-
-	G_AdjustClientPositions( ent, ent->client->pers.cmd.serverTime, qtrue );
-
-	G_AttachBodyParts( ent ) ;
-
-	trap_Trace( results, start, mins, maxs, end, passEntityNum, contentmask );
-
-	res = G_SwitchBodyPartEntity( &g_entities[results->entityNum] );
-	POSITION_READJUST
-
-	G_DettachBodyParts();
-
-	G_AdjustClientPositions( ent, 0, qfalse );
-
-	if ( results->entityNum >= 0 && results->entityNum < MAX_CLIENTS && ( other = &g_entities[results->entityNum] )->inuse ) {
-		G_AttachBodyParts( ent ) ;
-
-		trap_Trace( &tr, start, mins, maxs, other->client->ps.origin, passEntityNum, contentmask );
-		res = G_SwitchBodyPartEntity( &g_entities[results->entityNum] );
-		POSITION_READJUST
-
-		if ( tr.entityNum != results->entityNum ) {
-			trap_Trace( results, start, mins, maxs, end, passEntityNum, contentmask );
-			res = G_SwitchBodyPartEntity( &g_entities[results->entityNum] );
-			POSITION_READJUST
-		}
-
-		G_DettachBodyParts();
-	}
+    if ( useAntilag ) {
+        // Restore players to current positions
+        G_AdjustClientPositions( ent, 0, qfalse );
+    }
 }
