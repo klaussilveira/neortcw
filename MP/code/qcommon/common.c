@@ -2809,7 +2809,7 @@ void Com_Init( char *commandLine ) {
 	// init commands and vars
 	//
 	com_altivec = Cvar_Get ("com_altivec", "1", CVAR_ARCHIVE);
-	com_maxfps = Cvar_Get( "com_maxfps", "76", CVAR_ARCHIVE | CVAR_LATCH );
+	com_maxfps = Cvar_Get( "com_maxfps", "125", CVAR_ARCHIVE );
 	com_blood = Cvar_Get( "com_blood", "1", CVAR_ARCHIVE );
 
 	com_logfile = Cvar_Get( "logfile", "0", CVAR_TEMP );
@@ -3234,11 +3234,9 @@ void Com_Frame( void ) {
 			NET_Sleep(timeVal - 1);
 	} while(Com_TimeVal(minMsec));
 
-	IN_Frame();
-	
 	lastTime = com_frameTime;
 	com_frameTime = Com_EventLoop();
-	
+
 	msec = com_frameTime - lastTime;
 
 	Cbuf_Execute();
@@ -3280,12 +3278,13 @@ void Com_Frame( void ) {
 	// client system
 	//
 	//
-	// run event loop a second time to get server to client packets
-	// without a frame of latency
+	// poll input and run event loop to get server to client packets
+	// and freshest possible input right before the client frame
 	//
 	if ( com_speeds->integer ) {
 		timeBeforeEvents = Sys_Milliseconds ();
 	}
+	IN_Frame();
 	Com_EventLoop();
 	Cbuf_Execute ();
 
