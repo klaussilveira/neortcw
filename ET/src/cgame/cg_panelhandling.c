@@ -33,6 +33,8 @@ If you have questions concerning this license or the applicable additional terms
 // ======================================================
 panel_button_t* cg_focusButton;
 
+void CG_PanelButtons_SetFocusButton( panel_button_t* button );
+
 void CG_PanelButton_RenderEdit( panel_button_t* button ) {
 	qboolean useCvar = button->data[0] ? qfalse : qtrue;
 	int offset = -1;

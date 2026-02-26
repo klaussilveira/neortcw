@@ -179,10 +179,22 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
 
 
 	if ( primitives == 2 ) {
+#ifdef __EMSCRIPTEN__
+		// LEGACY_GL_EMULATION only supports GL_UNSIGNED_SHORT for client-side indices
+		{
+			static unsigned short shortIndexes[SHADER_MAX_INDEXES];
+			int i;
+			for ( i = 0; i < numIndexes; i++ ) {
+				shortIndexes[i] = (unsigned short)indexes[i];
+			}
+			qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_SHORT, shortIndexes );
+		}
+#else
 		qglDrawElements( GL_TRIANGLES,
 						 numIndexes,
 						 GL_INDEX_TYPE,
 						 indexes );
+#endif
 		return;
 	}
 

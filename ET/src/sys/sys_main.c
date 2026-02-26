@@ -41,6 +41,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "sys_local.h"
 #include "sys_loadlib.h"
 
@@ -49,8 +53,17 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <math.h>
 
+// Forward declarations for functions used before their definition
+void Sys_SendKeyEvents( void );
+qboolean Sys_GetPacket( netadr_t *net_from, msg_t *net_message );
+
 // com_ansiColor cvar (not in ET's qcommon)
 cvar_t *com_ansiColor;
+
+#ifdef __EMSCRIPTEN__
+// stdin_active referenced by unix_net.c but not defined in con_passive.c
+qboolean stdin_active = qfalse;
+#endif
 
 // stdinIsATTY defined in sys_unix.c/sys_win32.c
 
@@ -128,9 +141,9 @@ void Sys_In_Restart_f( void )
 		Com_Printf( "in_restart: Cannot restart input while video is shutdown\n" );
 		return;
 	}
-#endif
 
 	IN_Restart( );
+#endif
 }
 
 /*
@@ -531,6 +544,56 @@ void Sys_UnloadDll( void *dllHandle )
 	Sys_UnloadLibrary(dllHandle);
 }
 
+#ifdef __EMSCRIPTEN__
+/*
+=================
+Sys_LoadDll
+
+Emscripten: resolve statically linked game modules
+=================
+*/
+typedef intptr_t (QDECL *vmMainProc)(int callNum, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11);
+
+#ifndef DEDICATED
+extern void dllEntry_cgame(intptr_t (QDECL *)(intptr_t, ...));
+extern intptr_t QDECL vmMain_cgame(int, int, int, int, int, int, int, int, int, int, int, int, int);
+#endif
+extern void dllEntry_qagame(intptr_t (QDECL *)(intptr_t, ...));
+extern intptr_t QDECL vmMain_qagame(int, int, int, int, int, int, int, int, int, int, int, int, int);
+#ifndef DEDICATED
+extern void dllEntry_ui(intptr_t (QDECL *)(intptr_t, ...));
+extern intptr_t QDECL vmMain_ui(int, int, int, int, int, int, int, int, int, int, int, int, int);
+#endif
+
+void * QDECL Sys_LoadDll( const char *name, char *fqpath,
+	vmMainProc *entryPoint,
+	intptr_t (QDECL *systemcalls)(intptr_t, ...) )
+{
+	*fqpath = 0;
+
+#ifndef DEDICATED
+	if (strstr(name, "cgame")) {
+		dllEntry_cgame(systemcalls);
+		*entryPoint = vmMain_cgame;
+	} else
+#endif
+	if (strstr(name, "qagame")) {
+		dllEntry_qagame(systemcalls);
+		*entryPoint = vmMain_qagame;
+	}
+#ifndef DEDICATED
+	else if (strstr(name, "ui")) {
+		dllEntry_ui(systemcalls);
+		*entryPoint = vmMain_ui;
+	}
+#endif
+	else {
+		return NULL;
+	}
+	Com_Printf("Sys_LoadDll(%s) resolved statically\n", name);
+	return (void *)0x1;
+}
+#else
 /*
 =================
 Sys_LoadDll
@@ -605,6 +668,7 @@ void * QDECL Sys_LoadDll( const char *name, char *fqpath,
 
 	return libHandle;
 }
+#endif /* !__EMSCRIPTEN__ */
 
 /*
 =================
@@ -629,7 +693,9 @@ void Sys_ParseArgs( int argc, char **argv )
 }
 
 #ifndef DEFAULT_BASEDIR
-#	ifdef __APPLE__
+#	ifdef __EMSCRIPTEN__
+#		define DEFAULT_BASEDIR "."
+#	elif defined(__APPLE__)
 #		define DEFAULT_BASEDIR Sys_StripAppBundle(Sys_BinaryPath())
 #	else
 #		define DEFAULT_BASEDIR Sys_BinaryPath()
@@ -863,11 +929,14 @@ Sys_SendKeyEvents
 
 Platform-specific key event pump (called by Sys_GetEvent).
 Input processing is handled by IN_Frame, so this is a no-op.
+Dedicated server uses the definition in null_input.c instead.
 ================
 */
+#ifndef DEDICATED
 void Sys_SendKeyEvents( void )
 {
 }
+#endif
 
 /*
 ================
@@ -962,16 +1031,26 @@ int main( int argc, char **argv )
 	Com_Init( commandLine );
 	NET_Init( );
 
+#ifndef __EMSCRIPTEN__
 	signal( SIGILL, Sys_SigHandler );
 	signal( SIGFPE, Sys_SigHandler );
 	signal( SIGSEGV, Sys_SigHandler );
 	signal( SIGTERM, Sys_SigHandler );
 	signal( SIGINT, Sys_SigHandler );
+#endif
 
+#ifdef __EMSCRIPTEN__
+#ifdef DEDICATED
+	emscripten_set_main_loop(Com_Frame, 30, 1);
+#else
+	emscripten_set_main_loop(Com_Frame, 0, 1);
+#endif
+#else
 	while( 1 )
 	{
 		Com_Frame( );
 	}
+#endif
 
 	return 0;
 }

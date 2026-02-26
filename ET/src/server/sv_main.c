@@ -260,6 +260,22 @@ void SV_MasterHeartbeat( const char *hbname ) {
 	}
 	svs.nextHeartbeatTime = svs.time + HEARTBEAT_MSEC;
 
+#ifdef __EMSCRIPTEN__
+	if ( !WS_MasterIsConnected() ) {
+		WS_MasterConnect( MASTER_SERVER_WS_URL );
+	}
+	{
+		char info[1024];
+		Com_sprintf( info, sizeof( info ),
+			"{\"hostname\":\"%s\",\"mapname\":\"%s\",\"clients\":%d,\"sv_maxclients\":%d,\"gametype\":%d}",
+			sv_hostname->string, sv_mapname->string,
+			sv_maxclients->integer - svs.serverLoad, sv_maxclients->integer,
+			g_gameType ? g_gameType->integer : 0 );
+		WS_MasterHeartbeat( info );
+	}
+	Com_Printf( "Sending heartbeat to master (WebSocket)\n" );
+	return;
+#endif
 
 	// send to group masters
 	for ( i = 0 ; i < MAX_MASTER_SERVERS ; i++ ) {

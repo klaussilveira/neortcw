@@ -26,7 +26,10 @@ set(ET_BASE_CFLAGS
     -Wdisabled-optimization
 )
 
-if(ARCH STREQUAL "x86")
+if(EMSCRIPTEN)
+    list(FILTER ET_BASE_CFLAGS EXCLUDE REGEX "-m32|-m64|-pipe")
+    list(APPEND ET_BASE_CFLAGS -sUSE_SDL=2)
+elseif(ARCH STREQUAL "x86")
     list(APPEND ET_BASE_CFLAGS -m32)
 elseif(ARCH STREQUAL "x86_64")
     list(APPEND ET_BASE_CFLAGS -m64)
@@ -52,7 +55,7 @@ endif()
 
 # Source file lists
 
-# --- Client/Engine sources ---
+# Client/Engine sources
 set(ET_CLIENT_SRC
     src/client/cl_cgame.c
     src/client/cl_cin.c
@@ -143,7 +146,10 @@ set(ET_SPLINES_SRC
 )
 
 # Platform-specific network code (ET uses its own, not SP/MP's net_ip.c)
-if(WIN32)
+if(EMSCRIPTEN)
+    list(APPEND ET_CLIENT_SRC src/unix/unix_net.c)
+    list(APPEND ET_CLIENT_SRC src/sys/sys_unix.c src/sys/con_passive.c)
+elseif(WIN32)
     list(APPEND ET_CLIENT_SRC src/win32/win_net.c)
     list(APPEND ET_CLIENT_SRC src/sys/sys_win32.c src/sys/con_passive.c)
 else()
@@ -161,7 +167,7 @@ if(HAVE_VM_COMPILED)
     endif()
 endif()
 
-# --- Renderer OpenGL1 ---
+# Renderer OpenGL1
 set(ET_RENDERER_SRC
     src/renderer/tr_animation_mdm.c
     src/renderer/tr_animation_mds.c
@@ -194,10 +200,9 @@ set(ET_RENDERER_SRC
 )
 
 # q_shared.c and q_math.c are already in ET_CLIENT_SRC
-set(ET_RENDERER_COMMON_SRC
-)
+set(ET_RENDERER_COMMON_SRC)
 
-# --- Dedicated server sources ---
+# Dedicated server sources
 set(ET_DEDICATED_SRC
     src/server/sv_bot.c
     src/server/sv_client.c
@@ -262,7 +267,11 @@ set(ET_DEDICATED_SRC
     src/sys/sys_main.c
 )
 
-if(WIN32)
+if(EMSCRIPTEN)
+    list(FILTER ET_DEDICATED_SRC EXCLUDE REGEX "unix_net\\.c|sys_unix\\.c|con_tty\\.c")
+    list(APPEND ET_DEDICATED_SRC src/unix/unix_net.c)
+    list(APPEND ET_DEDICATED_SRC src/sys/sys_unix.c src/sys/con_passive.c)
+elseif(WIN32)
     list(APPEND ET_DEDICATED_SRC src/win32/win_net.c)
     list(APPEND ET_DEDICATED_SRC src/sys/sys_win32.c src/sys/con_passive.c)
 else()
@@ -279,7 +288,7 @@ if(HAVE_VM_COMPILED)
     endif()
 endif()
 
-# --- Game module sources ---
+# Game module sources
 
 # cgame
 set(ET_CGAME_SRC
@@ -429,7 +438,59 @@ set_source_files_properties(
 
 # Build targets
 
-# --- Renderer OpenGL 1 (shared library) ---
+# Emscripten static game modules
+if(EMSCRIPTEN)
+    # cgame
+    add_library(cgame_et_static STATIC ${ET_CGAME_SRC})
+    target_include_directories(
+        cgame_et_static
+        PRIVATE src/cgame src/game src/ui src/qcommon
+    )
+    target_compile_options(
+        cgame_et_static
+        PRIVATE
+            ${ET_BASE_CFLAGS}
+            -include
+            ${CMAKE_CURRENT_SOURCE_DIR}/cgame_wasm_prefix.h
+    )
+    target_compile_definitions(cgame_et_static PRIVATE CGAMEDLL CGAME)
+
+    # qagame
+    add_library(qagame_et_static STATIC ${ET_GAME_SRC})
+    target_include_directories(
+        qagame_et_static
+        PRIVATE src/game src/qcommon src/botlib src/botai
+    )
+    target_compile_options(
+        qagame_et_static
+        PRIVATE
+            ${ET_BASE_CFLAGS}
+            -include
+            ${CMAKE_CURRENT_SOURCE_DIR}/qagame_wasm_prefix.h
+    )
+    target_compile_definitions(qagame_et_static PRIVATE GAMEDLL QAGAME)
+    # Botlib sources in qagame need BOTLIB define
+    file(GLOB _ET_BOTLIB_STATIC_SOURCES src/botlib/*.c)
+    set_source_files_properties(
+        ${_ET_BOTLIB_STATIC_SOURCES}
+        TARGET_DIRECTORY qagame_et_static
+        PROPERTIES COMPILE_DEFINITIONS "BOTLIB"
+    )
+
+    # ui
+    add_library(ui_et_static STATIC ${ET_UI_SRC})
+    target_include_directories(ui_et_static PRIVATE src/ui src/game src/qcommon)
+    target_compile_options(
+        ui_et_static
+        PRIVATE
+            ${ET_BASE_CFLAGS}
+            -include
+            ${CMAKE_CURRENT_SOURCE_DIR}/ui_wasm_prefix.h
+    )
+    target_compile_definitions(ui_et_static PRIVATE UI)
+endif()
+
+# Renderer OpenGL 1 (shared library)
 if(ET_BUILD_CLIENT AND USE_RENDERER_DLOPEN)
     add_library(
         renderer_et_opengl1
@@ -469,20 +530,17 @@ if(ET_BUILD_CLIENT AND USE_RENDERER_DLOPEN)
         )
     endif()
 
-    target_include_directories(
-        renderer_et_opengl1
-        PRIVATE ${SDL2_INCLUDE_DIR}
-    )
-    target_link_libraries(
-        renderer_et_opengl1
-        PRIVATE ${SDL2_LIBRARY}
-    )
+    target_include_directories(renderer_et_opengl1 PRIVATE ${SDL2_INCLUDE_DIR})
+    target_link_libraries(renderer_et_opengl1 PRIVATE ${SDL2_LIBRARY})
 
     if(USE_INTERNAL_JPEG)
         target_link_libraries(renderer_et_opengl1 PRIVATE internal_jpeg)
     else()
         target_link_libraries(renderer_et_opengl1 PRIVATE ${JPEG_LIBRARIES})
-        target_include_directories(renderer_et_opengl1 PRIVATE ${JPEG_INCLUDE_DIRS})
+        target_include_directories(
+            renderer_et_opengl1
+            PRIVATE ${JPEG_INCLUDE_DIRS}
+        )
     endif()
 
     if(USE_INTERNAL_ZLIB)
@@ -502,7 +560,7 @@ if(ET_BUILD_CLIENT AND USE_RENDERER_DLOPEN)
     endif()
 endif()
 
-# --- Client executable ---
+# Client executable
 # ET does not support renderer dlopen - renderer is always linked in
 if(ET_BUILD_CLIENT)
     set(ET_CLIENT_ALL_SRC
@@ -511,6 +569,12 @@ if(ET_BUILD_CLIENT)
         ${ET_RENDERER_SRC}
         ${ET_RENDERER_COMMON_SRC}
     )
+
+    # Emscripten: use download stubs instead of curl
+    if(EMSCRIPTEN)
+        list(REMOVE_ITEM ET_CLIENT_ALL_SRC src/qcommon/dl_main_curl.c)
+        list(APPEND ET_CLIENT_ALL_SRC src/qcommon/dl_main_stubs.c)
+    endif()
 
     add_executable(iowolfet ${ET_CLIENT_ALL_SRC})
     set_target_properties(
@@ -532,14 +596,18 @@ if(ET_BUILD_CLIENT)
             src/botlib
             src/splines
             src/ui
-            ${SDL2_INCLUDE_DIR}
     )
+    if(NOT EMSCRIPTEN)
+        target_include_directories(iowolfet PRIVATE ${SDL2_INCLUDE_DIR})
+    endif()
     target_compile_options(iowolfet PRIVATE ${ET_BASE_CFLAGS})
 
     add_wolf_definitions(iowolfet)
     link_wolf_libs(iowolfet)
 
-    target_link_libraries(iowolfet PRIVATE ${SDL2_LIBRARY})
+    if(NOT EMSCRIPTEN)
+        target_link_libraries(iowolfet PRIVATE ${SDL2_LIBRARY})
+    endif()
 
     if(USE_INTERNAL_JPEG)
         target_link_libraries(iowolfet PRIVATE internal_jpeg)
@@ -547,15 +615,20 @@ if(ET_BUILD_CLIENT)
         target_link_libraries(iowolfet PRIVATE ${JPEG_LIBRARIES})
         target_include_directories(iowolfet PRIVATE ${JPEG_INCLUDE_DIRS})
     endif()
-    find_package(OpenGL REQUIRED)
-    target_link_libraries(iowolfet PRIVATE OpenGL::GL)
+    if(NOT EMSCRIPTEN)
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(iowolfet PRIVATE OpenGL::GL)
+    endif()
 
     if(USE_FREETYPE)
         if(USE_INTERNAL_FREETYPE)
             target_link_libraries(iowolfet PRIVATE internal_freetype)
         else()
             target_link_libraries(iowolfet PRIVATE ${FREETYPE_LIBRARIES})
-            target_include_directories(iowolfet PRIVATE ${FREETYPE_INCLUDE_DIRS})
+            target_include_directories(
+                iowolfet
+                PRIVATE ${FREETYPE_INCLUDE_DIRS}
+            )
         endif()
     endif()
 
@@ -565,7 +638,40 @@ if(ET_BUILD_CLIENT)
         target_include_directories(iowolfet PRIVATE ${CURL_INCLUDE_DIRS})
     endif()
 
-    if(PLATFORM STREQUAL "linux")
+    if(EMSCRIPTEN)
+        target_compile_options(iowolfet PRIVATE -sUSE_SDL=2)
+        target_link_options(
+            iowolfet
+            PRIVATE
+                -sUSE_SDL=2
+                -sLEGACY_GL_EMULATION=1
+                -sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=1
+                -sALLOW_MEMORY_GROWTH=1
+                -sINITIAL_MEMORY=234881024
+                "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']"
+                -sSTACK_SIZE=2097152
+                -sALLOW_TABLE_GROWTH=1
+                "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/src/sys/shell_emscripten.html"
+                "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/src/sys/net_master_ws.js"
+        )
+        set_target_properties(iowolfet PROPERTIES SUFFIX ".html")
+        target_link_libraries(
+            iowolfet
+            PRIVATE cgame_et_static qagame_et_static ui_et_static
+        )
+
+        # Preload game data if GAME_DATA_DIR is set
+        if(GAME_DATA_DIR)
+            file(GLOB _et_paks "${GAME_DATA_DIR}/*.pk3")
+            foreach(_pak ${_et_paks})
+                get_filename_component(_pakname "${_pak}" NAME)
+                target_link_options(
+                    iowolfet
+                    PRIVATE "SHELL:--preload-file ${_pak}@etmain/${_pakname}"
+                )
+            endforeach()
+        endif()
+    elseif(PLATFORM STREQUAL "linux")
         target_link_libraries(iowolfet PRIVATE dl m pthread)
     elseif(PLATFORM STREQUAL "freebsd")
         target_link_libraries(iowolfet PRIVATE m pthread)
@@ -582,7 +688,7 @@ if(ET_BUILD_CLIENT)
     endif()
 endif()
 
-# --- Dedicated server ---
+# Dedicated server
 if(ET_BUILD_SERVER)
     add_executable(iowolfetded ${ET_DEDICATED_SRC})
     set_target_properties(
@@ -593,20 +699,29 @@ if(ET_BUILD_SERVER)
     )
     target_include_directories(
         iowolfetded
-        PRIVATE
-            src/server
-            src/qcommon
-            src/game
-            src/sys
-            src/botlib
-            src/null
+        PRIVATE src/server src/qcommon src/game src/sys src/botlib src/null
     )
     target_compile_options(iowolfetded PRIVATE ${ET_BASE_CFLAGS})
     target_compile_definitions(iowolfetded PRIVATE DEDICATED)
 
     link_wolf_libs(iowolfetded)
 
-    if(PLATFORM STREQUAL "linux")
+    if(EMSCRIPTEN)
+        target_compile_options(iowolfetded PRIVATE -sUSE_SDL=2)
+        target_link_options(iowolfetded PRIVATE
+            -sALLOW_MEMORY_GROWTH=1
+            -sINITIAL_MEMORY=134217728
+            -sSTACK_SIZE=2097152
+            -sALLOW_TABLE_GROWTH=1
+            -sENVIRONMENT=node
+            -sEXIT_RUNTIME=1
+            -lnodefs.js
+            "--pre-js=${CMAKE_CURRENT_SOURCE_DIR}/src/sys/ded_node_prejs.js"
+                "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/src/sys/net_master_ws.js"
+        )
+        set_target_properties(iowolfetded PROPERTIES SUFFIX ".js")
+        target_link_libraries(iowolfetded PRIVATE qagame_et_static)
+    elseif(PLATFORM STREQUAL "linux")
         target_link_libraries(iowolfetded PRIVATE dl m pthread)
     elseif(PLATFORM STREQUAL "freebsd")
         target_link_libraries(iowolfetded PRIVATE m pthread)
@@ -617,7 +732,7 @@ if(ET_BUILD_SERVER)
     endif()
 endif()
 
-# --- Game modules (shared libraries) ---
+# Game modules (shared libraries)
 if(ET_BUILD_GAME_SO)
     # cgame
     add_library(cgame_et SHARED ${ET_CGAME_SRC})

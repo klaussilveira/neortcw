@@ -156,6 +156,30 @@ qboolean    Sys_StringToAdr( const char *s, netadr_t *a ) {
 //=============================================================================
 
 qboolean    Sys_GetPacket( netadr_t *net_from, msg_t *net_message ) {
+#ifdef __EMSCRIPTEN__
+	int ret;
+	// Under Emscripten, all game traffic goes through the WebSocket relay.
+	// recvfrom() on the emulated UDP socket can't receive real game data.
+	{
+		byte fromIp[4];
+		unsigned short fromPort;
+		ret = WS_RecvGamePacket( fromIp, &fromPort, net_message->data, net_message->maxsize );
+		if ( ret > 0 ) {
+			memset( net_from, 0, sizeof( *net_from ) );
+			net_from->type = NA_IP;
+			net_from->ip[0] = fromIp[0];
+			net_from->ip[1] = fromIp[1];
+			net_from->ip[2] = fromIp[2];
+			net_from->ip[3] = fromIp[3];
+			net_from->port = BigShort( fromPort );
+			net_message->cursize = ret;
+			net_message->readcount = 0;
+			return qtrue;
+		}
+	}
+	return qfalse;
+#else
+	{
 	int ret;
 	struct sockaddr_in from;
 	int fromlen;
@@ -204,6 +228,8 @@ qboolean    Sys_GetPacket( netadr_t *net_from, msg_t *net_message ) {
 	}
 
 	return qfalse;
+	}
+#endif
 }
 
 //=============================================================================
@@ -212,6 +238,17 @@ void    Sys_SendPacket( int length, const void *data, netadr_t to ) {
 	int ret;
 	struct sockaddr_in addr;
 	int net_socket;
+
+#ifdef __EMSCRIPTEN__
+	if ( to.type == NA_IP || to.type == NA_BROADCAST ) {
+		unsigned short port = BigShort( to.port );
+		// Try relay; if address isn't a known peer, silently drop.
+		// Emscripten's sendto() can't deliver real UDP — it creates
+		// broken WebSocket connections to ws://<ip>:<port>/.
+		WS_SendGamePacket( to.ip[0], to.ip[1], to.ip[2], to.ip[3], port, data, length );
+		return;
+	}
+#endif
 
 	if ( to.type == NA_BROADCAST ) {
 		net_socket = ip_socket;
@@ -656,11 +693,13 @@ int NET_IPSocket( char *net_interface, int port ) {
 		return 0;
 	}
 
+#ifndef __EMSCRIPTEN__
 	// make it broadcast capable
 	if ( setsockopt( newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&i, sizeof( i ) ) == -1 ) {
 		Com_Printf( "ERROR: UDP_OpenSocket: setsockopt SO_BROADCAST:%s\n", NET_ErrorString() );
 		return 0;
 	}
+#endif
 
 	if ( !net_interface || !net_interface[0] || !Q_stricmp( net_interface, "localhost" ) ) {
 		address.sin_addr.s_addr = INADDR_ANY;
@@ -682,8 +721,10 @@ int NET_IPSocket( char *net_interface, int port ) {
 		return 0;
 	}
 
+#ifndef __EMSCRIPTEN__
 	//bani
 	NET_GetInterfaces();
+#endif
 
 	return newsocket;
 }

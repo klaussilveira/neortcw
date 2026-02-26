@@ -163,6 +163,9 @@ void RB_ShadowTessEnd( void ) {
 	int numTris;
 	vec3_t lightDir;
 
+#ifdef __EMSCRIPTEN__
+	return; // stencil shadow volumes don't render correctly in GL emulation
+#endif
 	// we can only do this if we have enough space in the vertex buffers
 	if ( tess.numVertexes >= tess.maxShaderVerts / 2 ) {
 		return;
@@ -267,6 +270,9 @@ overlap and double darken.
 =================
 */
 void RB_ShadowFinish( void ) {
+#ifdef __EMSCRIPTEN__
+	return;
+#endif
 	if ( r_shadows->integer != 2 ) {
 		return;
 	}

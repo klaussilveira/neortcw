@@ -33,7 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #include <setjmp.h>
 
 // htons
-#ifdef __linux__
+#if defined(__linux__) || defined(__EMSCRIPTEN__)
 #include <netinet/in.h>
 // getpid
 #include <unistd.h>
@@ -2757,6 +2757,11 @@ void Com_Init( char *commandLine ) {
 		safeMode = qfalse;
 		if ( com_gameInfo.usesProfiles ) {
 			if ( !cl_profileStr[0] ) {
+#ifdef __EMSCRIPTEN__
+				Cvar_Set( "cl_defaultProfile", "default" );
+				Cvar_Set( "cl_profile", "default" );
+				Cvar_Set( "name", "ETPlayer" );
+#else
 				char *defaultProfile = NULL;
 
 				FS_ReadFile( "profiles/defaultprofile.dat", (void **)&defaultProfile );
@@ -2771,9 +2776,10 @@ void Com_Init( char *commandLine ) {
 					}
 
 					FS_FreeFile( defaultProfile );
-
-					cl_profileStr = Cvar_VariableString( "cl_defaultProfile" );
 				}
+#endif
+
+				cl_profileStr = Cvar_VariableString( "cl_defaultProfile" );
 			}
 
 			if ( cl_profileStr[0] ) {

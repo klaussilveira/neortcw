@@ -272,6 +272,18 @@ void Sys_PumpEvents( void );
 
 #endif
 
+//======================= EMSCRIPTEN DEFINES ============================
+
+#ifdef __EMSCRIPTEN__
+
+#define MAC_STATIC
+
+#define CPUSTRING   "emscripten-wasm32"
+
+#define PATH_SEP '/'
+
+#endif
+
 //=============================================================
 
 

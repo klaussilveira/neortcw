@@ -81,13 +81,13 @@ If you have questions concerning this license or the applicable additional terms
 #include "tr_local.h"
 #include "../qcommon/qcommon.h"
 
-//#define BUILD_FREETYPE
 #ifdef BUILD_FREETYPE
-#include "../ft2/fterrors.h"
-#include "../ft2/ftsystem.h"
-#include "../ft2/ftimage.h"
-#include "../ft2/freetype.h"
-#include "../ft2/ftoutln.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_ERRORS_H
+#include FT_SYSTEM_H
+#include FT_IMAGE_H
+#include FT_OUTLINE_H
 
 #define _FLOOR( x )  ( ( x ) & - 64 )
 #define _CEIL( x )   ( ( ( x ) + 63 ) & - 64 )

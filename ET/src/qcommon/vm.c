@@ -471,6 +471,18 @@ vm_t *VM_Create( const char *module, intptr_t ( *systemCalls )(intptr_t *),
 	vm = &vmTable[i];
 
 	Q_strncpyz( vm->name, module, sizeof( vm->name ) );
+
+#ifdef __EMSCRIPTEN__
+	// Emscripten: game modules are statically linked, load directly
+	vm->dllHandle = Sys_LoadDll( module, vm->fqpath, &vm->entryPoint, VM_DllSyscall );
+	if ( vm->dllHandle ) {
+		vm->systemCall = systemCalls;
+		return vm;
+	}
+	Com_Error( ERR_FATAL, "VM_Create: failed to load %s (static)", module );
+	return NULL;
+#endif
+
 	vm->systemCall = systemCalls;
 
 	if ( interpret == VMI_NATIVE ) {
@@ -684,10 +696,16 @@ intptr_t QDECL VM_Call( vm_t *vm, int callnum, ... ) {
 			args[i] = va_arg( ap, intptr_t );
 		va_end( ap );
 
+#ifdef __EMSCRIPTEN__
+		r = vm->entryPoint( callnum,  args[0],  args[1],  args[2], args[3],
+							args[4],  args[5],  args[6], args[7],
+							args[8],  args[9], args[10], args[11] );
+#else
 		r = vm->entryPoint( callnum,  args[0],  args[1],  args[2], args[3],
 							args[4],  args[5],  args[6], args[7],
 							args[8],  args[9], args[10], args[11],
 							args[12], args[13], args[14], args[15] );
+#endif
 	} else if ( vm->compiled ) {
 		r = VM_CallCompiled( vm, (int *)&callnum );
 	} else {

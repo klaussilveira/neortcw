@@ -26,7 +26,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Platform defines not present in ET's q_shared.h (from iortcw q_platform.h)
 #ifndef DLL_EXT
 
-#if defined(_WIN64) || defined(__WIN64__)
+#ifdef __EMSCRIPTEN__
+#define OS_STRING "emscripten"
+#ifndef ARCH_STRING
+#define ARCH_STRING "wasm32"
+#endif
+#define DLL_EXT ".js"
+#elif defined(_WIN64) || defined(__WIN64__)
 #define OS_STRING "win_msvc64"
 #ifndef ARCH_STRING
 #define ARCH_STRING "x64"

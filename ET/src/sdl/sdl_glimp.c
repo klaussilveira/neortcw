@@ -615,6 +615,12 @@ static qboolean GLimp_StartDriverAndSetMode(int mode, qboolean fullscreen, qbool
 }
 
 
+#ifdef __EMSCRIPTEN__
+// No-ops for GL functions not provided by Emscripten's LEGACY_GL_EMULATION.
+static void APIENTRY GLimp_Emscripten_LockArraysEXT( GLint first, GLsizei count ) { (void)first; (void)count; }
+static void APIENTRY GLimp_Emscripten_UnlockArraysEXT( void ) {}
+#endif
+
 /*
 ===============
 GLimp_InitExtensions
@@ -672,8 +678,19 @@ static void GLimp_InitExtensions( void )
 		}
 	}
 
+#ifdef __EMSCRIPTEN__
+	// WebGL can't compress textures at upload time via glTexImage2D;
+	// it only supports pre-compressed data via glCompressedTexImage2D.
+	glConfig.textureCompression = TC_NONE;
+	ri.Printf( PRINT_ALL, "...disabling texture compression (WebGL)\n" );
+#endif
+
 	// GL_EXT_texture_env_add
 	glConfig.textureEnvAddAvailable = qfalse;
+#ifdef __EMSCRIPTEN__
+	glConfig.textureEnvAddAvailable = qtrue;
+	ri.Printf( PRINT_ALL, "...using GL_EXT_texture_env_add (WebGL native)\n" );
+#else
 	if ( SDL_GL_ExtensionSupported( "GL_EXT_texture_env_add" ) )
 	{
 		if ( r_ext_texture_env_add->integer )
@@ -691,11 +708,32 @@ static void GLimp_InitExtensions( void )
 	{
 		ri.Printf( PRINT_ALL, "...GL_EXT_texture_env_add not found\n" );
 	}
+#endif
 
 	// GL_ARB_multitexture
 	qglMultiTexCoord2fARB = NULL;
 	qglActiveTextureARB = NULL;
 	qglClientActiveTextureARB = NULL;
+#ifdef __EMSCRIPTEN__
+	// Emscripten: glActiveTexture/glClientActiveTexture are core GL ES 2.0
+	qglActiveTextureARB = (void (APIENTRY *)(GLenum)) glActiveTexture;
+	qglClientActiveTextureARB = (void (APIENTRY *)(GLenum)) glClientActiveTexture;
+	{
+		GLint glint = 0;
+		qglGetIntegerv( GL_MAX_ACTIVE_TEXTURES_ARB, &glint );
+		glConfig.maxActiveTextures = (int) glint;
+		if ( glConfig.maxActiveTextures > 1 )
+		{
+			ri.Printf( PRINT_ALL, "...using multitexture (%i texture units)\n", glConfig.maxActiveTextures );
+		}
+		else
+		{
+			qglActiveTextureARB = NULL;
+			qglClientActiveTextureARB = NULL;
+			ri.Printf( PRINT_ALL, "...not using multitexture, < 2 texture units\n" );
+		}
+	}
+#else
 	if ( SDL_GL_ExtensionSupported( "GL_ARB_multitexture" ) )
 	{
 		if ( r_ext_multitexture->value )
@@ -731,10 +769,16 @@ static void GLimp_InitExtensions( void )
 	{
 		ri.Printf( PRINT_ALL, "...GL_ARB_multitexture not found\n" );
 	}
+#endif
 
 	// GL_EXT_compiled_vertex_array
 	qglLockArraysEXT = NULL;
 	qglUnlockArraysEXT = NULL;
+#ifdef __EMSCRIPTEN__
+	qglLockArraysEXT = GLimp_Emscripten_LockArraysEXT;
+	qglUnlockArraysEXT = GLimp_Emscripten_UnlockArraysEXT;
+	ri.Printf( PRINT_ALL, "...using no-op GL_EXT_compiled_vertex_array (Emscripten)\n" );
+#else
 	if ( SDL_GL_ExtensionSupported( "GL_EXT_compiled_vertex_array" ) )
 	{
 		if ( r_ext_compiled_vertex_array->value )
@@ -756,6 +800,7 @@ static void GLimp_InitExtensions( void )
 	{
 		ri.Printf( PRINT_ALL, "...GL_EXT_compiled_vertex_array not found\n" );
 	}
+#endif
 
 	// GL_NV_fog_distance
 	if ( SDL_GL_ExtensionSupported( "GL_NV_fog_distance" ) )

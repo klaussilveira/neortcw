@@ -285,6 +285,19 @@ You or the server may be running older versions of the game. Press the auto-upda
 #endif
 #define MOTD_SERVER_NAME        "etmaster.idsoftware.com"    //"etmotd.idsoftware.com"			// ?.?.?.?
 
+#ifdef __EMSCRIPTEN__
+#define MASTER_SERVER_WS_URL "wss://et-master.klaus-silveira.workers.dev"
+void WS_MasterConnect(const char *url);
+void WS_MasterDisconnect(void);
+void WS_MasterHeartbeat(const char *infoJson);
+void WS_MasterRequestServers(void);
+int  WS_MasterGetNextServer(char *outBuf, int bufSize);
+int  WS_MasterIsConnected(void);
+void WS_RegisterPeerAddress(byte ip0, byte ip1, byte ip2, byte ip3, unsigned short port, const char *peerId);
+int  WS_SendGamePacket(byte ip0, byte ip1, byte ip2, byte ip3, unsigned short port, const void *data, int len);
+int  WS_RecvGamePacket(byte *fromIp, unsigned short *fromPort, void *data, int maxLen);
+#endif
+
 #ifdef AUTHORIZE_SUPPORT
 	#define AUTHORIZE_SERVER_NAME   "wolfauthorize.idsoftware.com"
 #endif // AUTHORIZE_SUPPORT
@@ -1109,8 +1122,14 @@ void Sys_LeaveCriticalSection( void *ptr );
 
 char* Sys_GetDLLName( const char *name );
 // fqpath param added 2/15/02 by T.Ray - Sys_LoadDll is only called in vm.c at this time
+#ifdef __EMSCRIPTEN__
+typedef intptr_t (QDECL *vmMainProc)(int callNum, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11);
+void    * QDECL Sys_LoadDll( const char *name, char *fqpath, vmMainProc *entryPoint,
+							 intptr_t ( QDECL * systemcalls )( intptr_t, ... ) );
+#else
 void    * QDECL Sys_LoadDll( const char *name, char *fqpath, intptr_t( QDECL * *entryPoint ) ( int, ... ),
 							 intptr_t ( QDECL * systemcalls )( intptr_t, ... ) );
+#endif
 void    Sys_UnloadDll( void *dllHandle );
 
 void    Sys_UnloadGame( void );
@@ -1186,7 +1205,7 @@ void Sys_OpenURL( const char *url, qboolean doexit );                       // N
 int Sys_GetHighQualityCPU();
 float Sys_GetCPUSpeed( void );
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__EMSCRIPTEN__)
 // TTimo only on linux .. maybe on Mac too?
 // will OR with the existing mode (chmod ..+..)
 void Sys_Chmod( char *file, int mode );

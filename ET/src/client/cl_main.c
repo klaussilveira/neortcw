@@ -1122,6 +1122,9 @@ void CL_RequestMotd( void ) {
 	if ( !cl_motd->integer ) {
 		return;
 	}
+#ifdef __EMSCRIPTEN__
+	return; // UDP MOTD request can't work over WebSocket
+#endif
 	Com_Printf( "Resolving %s\n", MOTD_SERVER_NAME );
 	if ( !NET_StringToAdr( MOTD_SERVER_NAME, &cls.updateServer  ) ) {
 		Com_Printf( "Couldn't resolve address\n" );
@@ -2658,6 +2661,10 @@ CL_Frame
 
 ==================
 */
+#ifdef __EMSCRIPTEN__
+void CL_CheckMasterResponse( void );
+#endif
+
 void CL_Frame( int msec ) {
 
 	if ( !com_cl_running->integer ) {
@@ -2717,6 +2724,11 @@ void CL_Frame( int msec ) {
 
 	// resend a connection request if necessary
 	CL_CheckForResend();
+
+#ifdef __EMSCRIPTEN__
+	// poll WebSocket master for server list entries
+	CL_CheckMasterResponse();
+#endif
 
 	// decide on the serverTime to render
 	CL_SetCGameTime();
@@ -2979,6 +2991,10 @@ void CL_StartHunkUsers( void ) {
 // DHM - Nerve
 void CL_CheckAutoUpdate( void ) {
 #ifndef PRE_RELEASE_DEMO
+
+#ifdef __EMSCRIPTEN__
+	return; // Auto-update can't work over WebSocket
+#endif
 
 	if ( !cl_autoupdate->integer ) {
 		return;
@@ -4066,6 +4082,63 @@ void CL_LocalServers_f( void ) {
 	}
 }
 
+#ifdef __EMSCRIPTEN__
+/*
+======================
+CL_CheckMasterResponse
+======================
+*/
+void CL_CheckMasterResponse( void ) {
+	char buf[MAX_INFO_STRING];
+	serverInfo_t *server;
+
+	while ( WS_MasterGetNextServer( buf, sizeof( buf ) ) ) {
+		// First server arriving transitions from "waiting" (-1) to populated
+		if ( cls.numglobalservers < 0 ) {
+			cls.numglobalservers = 0;
+		}
+		if ( cls.numglobalservers >= MAX_GLOBAL_SERVERS ) {
+			break;
+		}
+		server = &cls.globalServers[cls.numglobalservers];
+		Com_Memset( server, 0, sizeof( *server ) );
+
+		// Use a synthetic positive ping so UI_BuildServerDisplayList
+		// includes the entry (it requires ping > 0).  We cannot do
+		// real UDP pings over WebSocket.
+		CL_SetServerInfo( server, buf, 1 );
+		server->visible = qtrue;
+
+		// Synthesize a unique address from the peer id so the UI
+		// can distinguish entries.
+		server->adr.type = NA_IP;
+		server->adr.port = BigShort( 27960 );
+		{
+			const char *id = Info_ValueForKey( buf, "id" );
+			char peerId[64];
+			const char *p;
+			int hash = 0;
+
+			Q_strncpyz( peerId, id, sizeof( peerId ) );
+			p = peerId;
+			while ( *p ) {
+				hash = hash * 31 + *p++;
+			}
+			server->adr.ip[0] = ( hash >> 24 ) & 0xFF;
+			server->adr.ip[1] = ( hash >> 16 ) & 0xFF;
+			server->adr.ip[2] = ( hash >> 8 ) & 0xFF;
+			server->adr.ip[3] = hash & 0xFF;
+
+			WS_RegisterPeerAddress( server->adr.ip[0], server->adr.ip[1],
+				server->adr.ip[2], server->adr.ip[3],
+				27960, peerId );
+		}
+
+		cls.numglobalservers++;
+	}
+}
+#endif
+
 /*
 ==================
 CL_GlobalServers_f
@@ -4091,9 +4164,20 @@ void CL_GlobalServers_f( void ) {
 	// -1 is used to distinguish a "no response"
 
 	if ( cls.masterNum == 0 ) {
+#ifdef __EMSCRIPTEN__
+		cls.numglobalservers = -1;
+		cls.numGlobalServerAddresses = 0;
+		cls.pingUpdateSource = AS_GLOBAL;
+		if ( !WS_MasterIsConnected() ) {
+			WS_MasterConnect( MASTER_SERVER_WS_URL );
+		}
+		WS_MasterRequestServers();
+		return;
+#else
 		NET_StringToAdr( MASTER_SERVER_NAME, &to );
 		cls.numglobalservers = -1;
 		cls.pingUpdateSource = AS_GLOBAL;
+#endif
 	}
 	to.type = NA_IP;
 	to.port = BigShort( PORT_MASTER );

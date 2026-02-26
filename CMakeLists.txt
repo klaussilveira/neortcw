@@ -26,8 +26,26 @@ option(USE_INTERNAL_OGG "Use bundled libogg" ${USE_INTERNAL_LIBS})
 option(USE_INTERNAL_VORBIS "Use bundled libvorbis" ${USE_INTERNAL_LIBS})
 option(USE_INTERNAL_OPUS "Use bundled Opus" ${USE_INTERNAL_LIBS})
 
-# Platform & architecture detection
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+# Platform detection
+if(EMSCRIPTEN)
+    set(PLATFORM "emscripten")
+
+    # Disable features unavailable in browser
+    set(USE_RENDERER_DLOPEN OFF CACHE BOOL "" FORCE)
+    set(USE_OPENAL OFF CACHE BOOL "" FORCE)
+    set(USE_OPENAL_DLOPEN OFF CACHE BOOL "" FORCE)
+    set(USE_VOIP OFF CACHE BOOL "" FORCE)
+    set(USE_MUMBLE OFF CACHE BOOL "" FORCE)
+    set(USE_FREETYPE OFF CACHE BOOL "" FORCE)
+    set(USE_CODEC_VORBIS OFF CACHE BOOL "" FORCE)
+    set(USE_CODEC_OPUS OFF CACHE BOOL "" FORCE)
+    set(USE_INTERNAL_LIBS ON CACHE BOOL "" FORCE)
+    set(USE_INTERNAL_ZLIB ON CACHE BOOL "" FORCE)
+    set(USE_INTERNAL_JPEG ON CACHE BOOL "" FORCE)
+    set(BUILD_SP OFF CACHE BOOL "" FORCE)
+    set(BUILD_MP OFF CACHE BOOL "" FORCE)
+    set(HAVE_VM_COMPILED FALSE)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(PLATFORM "linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(PLATFORM "darwin")
@@ -40,7 +58,10 @@ else()
 endif()
 
 # Architecture
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+if(EMSCRIPTEN)
+    set(ARCH "wasm32")
+    set(FILE_ARCH "wasm32")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
     set(ARCH "x86_64")
     set(FILE_ARCH "x86_64")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86)$")
@@ -62,7 +83,9 @@ else()
 endif()
 
 # Shared library extension
-if(APPLE)
+if(EMSCRIPTEN)
+    set(SHLIBEXT "wasm")
+elseif(APPLE)
     set(SHLIBEXT "dylib")
 elseif(WIN32)
     set(SHLIBEXT "dll")
@@ -122,13 +145,12 @@ endif()
 
 # Find external libraries
 
-# --- SDL2 (required for client & renderers) ---
-# Gate on whether any client build is enabled
-if(BUILD_MP OR BUILD_SP OR BUILD_ET)
+# SDL2
+if((BUILD_MP OR BUILD_SP OR BUILD_ET) AND NOT EMSCRIPTEN)
     find_package(SDL2 REQUIRED)
 endif()
 
-# --- ZLIB ---
+# ZLIB
 if(NOT USE_INTERNAL_ZLIB)
     find_package(ZLIB)
     if(NOT ZLIB_FOUND)
@@ -137,7 +159,7 @@ if(NOT USE_INTERNAL_ZLIB)
     endif()
 endif()
 
-# --- JPEG ---
+# JPEG
 if(NOT USE_INTERNAL_JPEG)
     find_package(JPEG)
     if(NOT JPEG_FOUND)
@@ -146,7 +168,7 @@ if(NOT USE_INTERNAL_JPEG)
     endif()
 endif()
 
-# --- FreeType ---
+# FreeType
 if(USE_FREETYPE)
     if(NOT USE_INTERNAL_FREETYPE)
         find_package(Freetype)
@@ -157,12 +179,12 @@ if(USE_FREETYPE)
     endif()
 endif()
 
-# --- OpenAL ---
+# OpenAL
 if(USE_OPENAL AND NOT USE_OPENAL_DLOPEN)
     find_package(OpenAL)
 endif()
 
-# --- Ogg/Vorbis/Opus ---
+# Ogg/Vorbis/Opus
 include(FindPkgConfig OPTIONAL)
 
 set(NEED_OPUS OFF)
@@ -286,8 +308,10 @@ endfunction()
 
 # Link renderer dependencies (SDL2, JPEG, FreeType, OpenGL)
 function(link_renderer_libs target)
-    target_include_directories(${target} PRIVATE ${SDL2_INCLUDE_DIR})
-    target_link_libraries(${target} PRIVATE ${SDL2_LIBRARY})
+    if(NOT EMSCRIPTEN)
+        target_include_directories(${target} PRIVATE ${SDL2_INCLUDE_DIR})
+        target_link_libraries(${target} PRIVATE ${SDL2_LIBRARY})
+    endif()
 
     if(USE_INTERNAL_JPEG)
         target_link_libraries(${target} PRIVATE internal_jpeg)
@@ -308,8 +332,10 @@ function(link_renderer_libs target)
         endif()
     endif()
 
-    find_package(OpenGL REQUIRED)
-    target_link_libraries(${target} PRIVATE OpenGL::GL)
+    if(NOT EMSCRIPTEN)
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(${target} PRIVATE OpenGL::GL)
+    endif()
 endfunction()
 
 # Link codec libraries (Opus, Vorbis, Ogg)

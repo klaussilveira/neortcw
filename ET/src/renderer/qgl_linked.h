@@ -362,3 +362,27 @@ If you have questions concerning this license or the applicable additional terms
 #define qglVertexPointer glVertexPointer
 #define qglViewport glViewport
 
+#ifdef __EMSCRIPTEN__
+/* GL functions not provided by Emscripten's LEGACY_GL_EMULATION */
+#undef qglArrayElement
+#undef qglCallList
+#undef qglCallLists
+#undef qglDrawBuffer
+#undef qglDrawPixels
+#undef qglListBase
+#undef qglPolygonMode
+#undef qglPushAttrib
+#undef qglPopAttrib
+#undef qglRasterPos3fv
+static inline void qglArrayElement( GLint i ) { (void)i; }
+static inline void qglCallList( GLuint list ) { (void)list; }
+static inline void qglCallLists( GLsizei n, GLenum type, const GLvoid *lists ) { (void)n; (void)type; (void)lists; }
+static inline void qglDrawBuffer( GLenum mode ) { (void)mode; }
+static inline void qglDrawPixels( GLsizei w, GLsizei h, GLenum fmt, GLenum type, const GLvoid *p ) { (void)w; (void)h; (void)fmt; (void)type; (void)p; }
+static inline void qglListBase( GLuint base ) { (void)base; }
+static inline void qglPolygonMode( GLenum face, GLenum mode ) { (void)face; (void)mode; }
+static inline void qglPushAttrib( GLbitfield mask ) { (void)mask; }
+static inline void qglPopAttrib( void ) {}
+static inline void qglRasterPos3fv( const GLfloat *v ) { (void)v; }
+#endif
+

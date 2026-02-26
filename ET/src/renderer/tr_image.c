@@ -781,11 +781,37 @@ static void Upload32(   unsigned *data,
 	} else {
 		internalFormat = GL_RGB;
 	}
+#ifdef __EMSCRIPTEN__
+	// WebGL 1 only accepts unsized internal formats
+	if ( internalFormat == GL_RGB8 || internalFormat == GL_RGB5 || internalFormat == GL_RGB4_S3TC ) {
+		internalFormat = GL_RGB;
+	} else if ( internalFormat == GL_RGBA8 || internalFormat == GL_RGBA4 ) {
+		internalFormat = GL_RGBA;
+	}
+#endif
 	// copy or resample data as appropriate for first MIP level
 	if ( ( scaled_width == width ) &&
 		 ( scaled_height == height ) ) {
 		if ( !mipmap ) {
+#ifdef __EMSCRIPTEN__
+			// WebGL 1 requires format == internalFormat in glTexImage2D.
+			if ( internalFormat == GL_RGB ) {
+				byte *rgb = ri.Hunk_AllocateTempMemory( scaled_width * scaled_height * 3 );
+				byte *src = (byte *)data;
+				int j;
+				for ( j = 0; j < scaled_width * scaled_height; j++ ) {
+					rgb[j * 3 + 0] = src[j * 4 + 0];
+					rgb[j * 3 + 1] = src[j * 4 + 1];
+					rgb[j * 3 + 2] = src[j * 4 + 2];
+				}
+				qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, scaled_width, scaled_height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb );
+				ri.Hunk_FreeTempMemory( rgb );
+			} else {
+				qglTexImage2D( GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data );
+			}
+#else
 			qglTexImage2D( GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data );
+#endif
 			*pUploadWidth = scaled_width;
 			*pUploadHeight = scaled_height;
 			*format = internalFormat;
@@ -816,6 +842,21 @@ static void Upload32(   unsigned *data,
 	*pUploadHeight = scaled_height;
 	*format = internalFormat;
 
+#ifdef __EMSCRIPTEN__
+	// WebGL 1 requires format == internalFormat in glTexImage2D.
+	if ( internalFormat == GL_RGB ) {
+		byte *rgb = ri.Hunk_AllocateTempMemory( scaled_width * scaled_height * 3 );
+		byte *src = (byte *)scaledBuffer;
+		int j;
+		for ( j = 0; j < scaled_width * scaled_height; j++ ) {
+			rgb[j * 3 + 0] = src[j * 4 + 0];
+			rgb[j * 3 + 1] = src[j * 4 + 1];
+			rgb[j * 3 + 2] = src[j * 4 + 2];
+		}
+		qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, scaled_width, scaled_height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb );
+		ri.Hunk_FreeTempMemory( rgb );
+	} else
+#endif
 	qglTexImage2D( GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaledBuffer );
 
 	if ( mipmap ) {
@@ -839,6 +880,20 @@ static void Upload32(   unsigned *data,
 				R_BlendOverTexture( (byte *)scaledBuffer, scaled_width * scaled_height, mipBlendColors[miplevel] );
 			}
 
+#ifdef __EMSCRIPTEN__
+			if ( internalFormat == GL_RGB ) {
+				byte *rgb = ri.Hunk_AllocateTempMemory( scaled_width * scaled_height * 3 );
+				byte *src = (byte *)scaledBuffer;
+				int j;
+				for ( j = 0; j < scaled_width * scaled_height; j++ ) {
+					rgb[j * 3 + 0] = src[j * 4 + 0];
+					rgb[j * 3 + 1] = src[j * 4 + 1];
+					rgb[j * 3 + 2] = src[j * 4 + 2];
+				}
+				qglTexImage2D( GL_TEXTURE_2D, miplevel, GL_RGB, scaled_width, scaled_height, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb );
+				ri.Hunk_FreeTempMemory( rgb );
+			} else
+#endif
 			qglTexImage2D( GL_TEXTURE_2D, miplevel, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaledBuffer );
 		}
 	}
