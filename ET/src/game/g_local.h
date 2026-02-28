@@ -739,7 +739,7 @@ typedef struct {
 } clientMarker_t;
 
 
-#define MAX_CLIENT_MARKERS 10
+#define MAX_CLIENT_MARKERS 20
 
 #define NUM_SOLDIERKILL_TIMES 10
 #define SOLDIERKILL_MAXTIME 60000

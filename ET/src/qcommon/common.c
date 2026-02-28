@@ -2829,7 +2829,7 @@ void Com_Init( char *commandLine ) {
 	// init commands and vars
 	//
 	// Gordon: no need to latch this in ET, our recoil is framerate independant
-	com_maxfps = Cvar_Get( "com_maxfps", "85", CVAR_ARCHIVE /*|CVAR_LATCH*/ );
+	com_maxfps = Cvar_Get( "com_maxfps", "125", CVAR_ARCHIVE );
 //	com_blood = Cvar_Get ("com_blood", "1", CVAR_ARCHIVE); // Gordon: no longer used?
 
 	com_developer = Cvar_Get( "developer", "0", CVAR_TEMP );
@@ -3176,12 +3176,13 @@ void Com_Frame( void ) {
 	//
 	if ( !com_dedicated->integer ) {
 		//
-		// run event loop a second time to get server to client packets
-		// without a frame of latency
+		// poll input and run event loop to get server to client packets
+		// and freshest possible input right before the client frame
 		//
 		if ( com_speeds->integer ) {
 			timeBeforeEvents = Sys_Milliseconds();
 		}
+		IN_Frame();
 		Com_EventLoop();
 		Cbuf_Execute();
 

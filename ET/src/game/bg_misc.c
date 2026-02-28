@@ -4152,7 +4152,14 @@ void BG_PlayerStateToEntityStateExtraPolate( playerState_t *ps, entityState_t *s
 	// set the time for linear prediction
 	s->pos.trTime = time;
 	// set maximum extra polation time
-	s->pos.trDuration = 50; // 1000 / sv_fps (default = 20)
+	{
+		char buf[MAX_CVAR_VALUE_STRING];
+		int fps;
+
+		trap_Cvar_VariableStringBuffer( "sv_fps", buf, sizeof( buf ) );
+		fps = atoi( buf );
+		s->pos.trDuration = fps > 0 ? 1000 / fps : 25;
+	}
 
 	s->apos.trType = TR_INTERPOLATE;
 	VectorCopy( ps->viewangles, s->apos.trBase );
