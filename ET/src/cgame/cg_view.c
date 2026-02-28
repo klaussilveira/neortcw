@@ -1279,8 +1279,9 @@ int CG_CalcViewValues( void ) {
 			float f;
 
 			t = cg.time - cg.predictedErrorTime;
-			f = ( cg_errorDecay.value - t ) / cg_errorDecay.value;
+			f = 1.0f - (float)t / cg_errorDecay.value;
 			if ( f > 0 && f < 1 ) {
+				f = f * f * f;
 				VectorMA( cg.refdef_current->vieworg, f, cg.predictedError, cg.refdef_current->vieworg );
 			} else {
 				cg.predictedErrorTime = 0;

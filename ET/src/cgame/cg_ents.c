@@ -2255,7 +2255,7 @@ void CG_CalcEntityLerpPositions( centity_t *cent ) {
 	// NERVE - SMF - fix for jittery clients in multiplayer
 	// first see if we can interpolate between two snaps for
 	// linear extrapolated clients
-	if ( cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP && cent->currentState.number < MAX_CLIENTS ) {
+	if ( cg.nextSnap && cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP && cent->currentState.number < MAX_CLIENTS ) {
 		CG_InterpolateEntityPosition( cent );
 		return;
 	}

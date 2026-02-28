@@ -1030,10 +1030,11 @@ void CG_PredictPlayerState( void ) {
 						float f;
 
 						t = cg.time - cg.predictedErrorTime;
-						f = ( cg_errorDecay.value - t ) / cg_errorDecay.value;
+						f = 1.0f - (float)t / cg_errorDecay.value;
 						if ( f < 0 ) {
 							f = 0;
 						}
+						f = f * f * f;
 						if ( f > 0 && cg_showmiss.integer ) {
 							CG_Printf( "Double prediction decay: %f\n", f );
 						}
