@@ -773,7 +773,7 @@ static void R_RecursiveWorldNode(mnode_t* node, int planeBits, int dlightBits, i
                     return; // culled
                 }
                 if (r == 1) {
-                    planeBits &= ~8; // all descendants will also be in front
+                    planeBits &= ~16; // all descendants will also be in front
                 }
             }
         }

@@ -391,8 +391,8 @@ void RE_RegisterFont(const char* fontName, int pointSize, fontInfo_t* font)
             font->glyphs[i].s2 = readFloat();
             font->glyphs[i].t2 = readFloat();
             font->glyphs[i].glyph = readInt();
-            memcpy(font->glyphs[i].shaderName, &fdFile[fdOffset], 32);
-            fdOffset += 32;
+            Q_strncpyz(font->glyphs[i].shaderName, (const char*)&fdFile[fdOffset], sizeof(font->glyphs[i].shaderName));
+            fdOffset += sizeof(font->glyphs[i].shaderName);
         }
         font->glyphScale = readFloat();
         memcpy(font->name, &fdFile[fdOffset], MAX_QPATH);
@@ -403,6 +403,7 @@ void RE_RegisterFont(const char* fontName, int pointSize, fontInfo_t* font)
             font->glyphs[i].glyph = RE_RegisterShaderNoMip(font->glyphs[i].shaderName);
         }
         memcpy(&registeredFont[registeredFontCount++], font, sizeof(fontInfo_t));
+        ri.FS_FreeFile(faceData);
         return;
     }
 

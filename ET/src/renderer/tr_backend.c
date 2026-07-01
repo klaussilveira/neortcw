@@ -429,7 +429,7 @@ void RB_BeginDrawingView(void)
     //		clearBits = GL_DEPTH_BUFFER_BIT;	// (SA) always just clear depth for menus
     //	}
     // ydnar: global q3 fog volume
-    else if (tr.world && tr.world->globalFog >= 0) {
+    if (tr.world && tr.world->globalFog >= 0) {
         clearBits |= GL_DEPTH_BUFFER_BIT;
         clearBits |= GL_COLOR_BUFFER_BIT;
         //
@@ -575,7 +575,7 @@ void RB_RenderDrawSurfList(drawSurf_t* drawSurfs, int numDrawSurfs)
     int i;
     drawSurf_t* drawSurf;
     int oldSort;
-    float originalTime;
+    double originalTime;
 #ifdef __MACOS__
     int macEventTime;
 
@@ -760,7 +760,7 @@ void RB_SetGL2D(void)
 
     // set time for 2D shaders
     backEnd.refdef.time = ri.Milliseconds();
-    backEnd.refdef.floatTime = backEnd.refdef.time * 0.001f;
+    backEnd.refdef.floatTime = (double)backEnd.refdef.time * 0.001;
 }
 
 /*

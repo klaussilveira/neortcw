@@ -1913,7 +1913,9 @@ static void R_LoadSubmodels(lump_t* l)
 
         model = R_AllocModel();
 
-        assert(model != NULL); // this should never happen
+        if (model == NULL) { // this should never happen
+            ri.Error(ERR_DROP, "R_LoadSubmodels: R_AllocModel() failed");
+        }
 
         model->type = MOD_BRUSH;
         model->model.bmodel = out;
@@ -2288,13 +2290,19 @@ static void R_LoadFogs(lump_t* l, lump_t* brushesLump, lump_t* sidesLump)
         sideNum = LittleLong(fogs->visibleSide);
 
         // ydnar: made this check a little more strenuous (was sideNum == -1)
-        if (sideNum < 0 || sideNum >= sidesCount) {
+        if (sideNum == -1) {
             out->hasSurface = qfalse;
         } else {
-            out->hasSurface = qtrue;
-            planeNum = LittleLong(sides[firstSide + sideNum].planeNum);
-            VectorSubtract(vec3_origin, s_worldData.planes[planeNum].normal, out->surface);
-            out->surface[3] = -s_worldData.planes[planeNum].dist;
+            int sideOffset = firstSide + sideNum;
+            if ((unsigned)sideOffset >= sidesCount) {
+                ri.Printf(PRINT_WARNING, "bad fog side offset %i\n", sideOffset);
+                out->hasSurface = qfalse;
+            } else {
+                out->hasSurface = qtrue;
+                planeNum = LittleLong(sides[sideOffset].planeNum);
+                VectorSubtract(vec3_origin, s_worldData.planes[planeNum].normal, out->surface);
+                out->surface[3] = -s_worldData.planes[planeNum].dist;
+            }
         }
 
         out++;
@@ -2546,6 +2554,7 @@ Called directly from cgame
 void RE_LoadWorldMap(const char* name)
 {
     int i;
+    int size;
     dheader_t* header;
     byte* buffer;
     byte* startMarker;
@@ -2583,9 +2592,12 @@ void RE_LoadWorldMap(const char* name)
     tr.worldDir = NULL;
 
     // load it
-    ri.FS_ReadFile(name, (void**)&buffer);
+    size = ri.FS_ReadFile(name, (void**)&buffer);
     if (!buffer) {
         ri.Error(ERR_DROP, "RE_LoadWorldMap: %s not found", name);
+    }
+    if (size < (int)sizeof(dheader_t)) {
+        ri.Error(ERR_DROP, "RE_LoadWorldMap: %s has truncated header", name);
     }
 
     // ydnar: set map meta dir
@@ -2617,6 +2629,14 @@ void RE_LoadWorldMap(const char* name)
     // swap all the lumps
     for (i = 0; i < sizeof(dheader_t) / 4; i++) {
         ((int*)header)[i] = LittleLong(((int*)header)[i]);
+    }
+
+    for (i = 0; i < HEADER_LUMPS; i++) {
+        int ofs = header->lumps[i].fileofs;
+        int len = header->lumps[i].filelen;
+        if ((unsigned)ofs > MAX_QINT || (unsigned)len > MAX_QINT || ofs + len > size || ofs + len < 0) {
+            ri.Error(ERR_DROP, "RE_LoadWorldMap: %s has wrong lump[%i] size/offset", name, i);
+        }
     }
 
     // load into heap

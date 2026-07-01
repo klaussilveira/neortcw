@@ -1062,11 +1062,13 @@ typedef struct
 
 static void LoadBMP(const char* name, byte** pic, int* width, int* height)
 {
-    int columns, rows, numPixels;
+    int columns, rows;
+    unsigned numPixels;
     byte* pixbuf;
     int row, column;
     byte* buf_p;
     byte* buffer;
+    byte* end;
     int length;
     BMPHeader_t bmpHeader;
     byte* bmpRGBA;
@@ -1081,7 +1083,12 @@ static void LoadBMP(const char* name, byte** pic, int* width, int* height)
         return;
     }
 
+    if (length < 54) {
+        ri.Error(ERR_DROP, "LoadBMP: header too short (%s)\n", name);
+    }
+
     buf_p = buffer;
+    end = buffer + length;
 
     bmpHeader.id[0] = *buf_p++;
     bmpHeader.id[1] = *buf_p++;
@@ -1114,10 +1121,12 @@ static void LoadBMP(const char* name, byte** pic, int* width, int* height)
     bmpHeader.importantColors = LittleLong(*(int*)buf_p);
     buf_p += 4;
 
-    memcpy(bmpHeader.palette, buf_p, sizeof(bmpHeader.palette));
-
     if (bmpHeader.bitsPerPixel == 8) {
-        buf_p += 1024;
+        if (buf_p + sizeof(bmpHeader.palette) > end) {
+            ri.Error(ERR_DROP, "LoadBMP: header too short (%s)\n", name);
+        }
+        memcpy(bmpHeader.palette, buf_p, sizeof(bmpHeader.palette));
+        buf_p += sizeof(bmpHeader.palette);
     }
 
     if (bmpHeader.id[0] != 'B' && bmpHeader.id[1] != 'M') {
@@ -1139,6 +1148,13 @@ static void LoadBMP(const char* name, byte** pic, int* width, int* height)
         rows = -rows;
     }
     numPixels = columns * rows;
+
+    if (columns <= 0 || !rows || numPixels > 0x1FFFFFFF || ((numPixels * 4) / columns) / 4 != rows) {
+        ri.Error(ERR_DROP, "LoadBMP: %s has an invalid image size\n", name);
+    }
+    if (buf_p + numPixels * bmpHeader.bitsPerPixel / 8 > end) {
+        ri.Error(ERR_DROP, "LoadBMP: file truncated (%s)\n", name);
+    }
 
     if (width) {
         *width = columns;
@@ -1215,31 +1231,26 @@ PCX LOADING
 
 /*
 ==============
-LoadPCX
+LoadPCX32
 ==============
 */
-#define DECODEPCX(b, d, r)    \
-    d = *b++;                 \
-    if ((d & 0xC0) == 0xC0) { \
-        r = d & 0x3F;         \
-        d = *b++;             \
-    } else {                  \
-        r = 1;                \
-    }
-
-static void LoadPCX(const char* filename, byte** pic, byte** palette, int* width, int* height)
+static void LoadPCX32(const char* filename, byte** pic, int* width, int* height)
 {
     byte* raw;
     pcx_t* pcx;
-    int x, y, lsize;
+    byte* end;
     int len;
     int dataByte, runLength;
-    byte *out, *pix;
-    int xmax, ymax;
+    byte *out, *pix, *pic8, *palette;
+    int w, h, size, i;
 
     *pic = NULL;
-    *palette = NULL;
-    runLength = 0;
+    if (width) {
+        *width = 0;
+    }
+    if (height) {
+        *height = 0;
+    }
 
     //
     // load the file
@@ -1249,125 +1260,93 @@ static void LoadPCX(const char* filename, byte** pic, byte** palette, int* width
         return;
     }
 
+    if (len < (int)sizeof(pcx_t)) {
+        ri.Printf(PRINT_ALL, "PCX truncated: %s\n", filename);
+        ri.FS_FreeFile(raw);
+        return;
+    }
+
     //
     // parse the PCX file
     //
     pcx = (pcx_t*)raw;
-    raw = &pcx->data;
+    end = raw + len;
 
-    xmax = LittleShort(pcx->xmax);
-    ymax = LittleShort(pcx->ymax);
+    w = LittleShort(pcx->xmax) + 1;
+    h = LittleShort(pcx->ymax) + 1;
+    size = w * h;
 
     if (pcx->manufacturer != 0x0a
     || pcx->version != 5
     || pcx->encoding != 1
     || pcx->bits_per_pixel != 8
-    || xmax >= 1024
-    || ymax >= 1024) {
-        ri.Printf(PRINT_ALL, "Bad pcx file %s (%i x %i) (%i x %i)\n", filename, xmax + 1, ymax + 1, pcx->xmax, pcx->ymax);
+    || w >= 1024
+    || h >= 1024) {
+        ri.Printf(PRINT_ALL, "Bad pcx file %s (%i x %i)\n", filename, w, h);
+        ri.FS_FreeFile(raw);
         return;
     }
 
-    out = R_GetImageBuffer((ymax + 1) * (xmax + 1), BUFFER_IMAGE);
+    pic8 = ri.Hunk_AllocateTempMemory(size);
 
+    raw = &pcx->data;
+    pix = pic8;
+    runLength = 0;
+    dataByte = 0;
+
+    // decode the RLE data, bounded by both the output size and the end of
+    // the file buffer so a malformed file cannot over-read or over-write
+    while (pix < pic8 + size) {
+        if (runLength > 0) {
+            *pix++ = dataByte;
+            runLength--;
+            continue;
+        }
+        if (raw + 1 > end) {
+            break;
+        }
+        dataByte = *raw++;
+        if ((dataByte & 0xC0) == 0xC0) {
+            if (raw + 1 > end) {
+                break;
+            }
+            runLength = dataByte & 0x3F;
+            dataByte = *raw++;
+        } else {
+            runLength = 1;
+        }
+    }
+
+    if (pix < pic8 + size || len < 769 || end[-769] != 0x0c) {
+        ri.Printf(PRINT_ALL, "PCX file %s was malformed\n", filename);
+        ri.Hunk_FreeTempMemory(pic8);
+        ri.FS_FreeFile(pcx);
+        return;
+    }
+
+    palette = end - 768;
+
+    out = R_GetImageBuffer(4 * size, BUFFER_IMAGE);
     *pic = out;
-
     pix = out;
-
-    if (palette) {
-        *palette = ri.Z_Malloc(768);
-        memcpy(*palette, (byte*)pcx + len - 768, 768);
+    for (i = 0; i < size; i++) {
+        int p = pic8[i];
+        pix[0] = palette[p * 3];
+        pix[1] = palette[p * 3 + 1];
+        pix[2] = palette[p * 3 + 2];
+        pix[3] = 255;
+        pix += 4;
     }
 
     if (width) {
-        *width = xmax + 1;
+        *width = w;
     }
     if (height) {
-        *height = ymax + 1;
-    }
-    // FIXME: use bytes_per_line here?
-
-    // Arnout: this doesn't work for all pcx files
-    /*for (y=0 ; y<=ymax ; y++, pix += xmax+1)
-    {
-            for (x=0 ; x<=xmax ; )
-            {
-                    dataByte = *raw++;
-
-                    if((dataByte & 0xC0) == 0xC0)
-                    {
-                            runLength = dataByte & 0x3F;
-                            dataByte = *raw++;
-                    }
-                    else
-                            runLength = 1;
-
-                    while(runLength-- > 0)
-                            pix[x++] = dataByte;
-            }
-
-    }*/
-
-    lsize = pcx->color_planes * pcx->bytes_per_line;
-
-    // go scanline by scanline
-    for (y = 0; y <= pcx->ymax; y++, pix += pcx->xmax + 1) {
-        // do a scanline
-        for (x = 0; x <= pcx->xmax;) {
-            DECODEPCX(raw, dataByte, runLength);
-            while (runLength-- > 0)
-                pix[x++] = dataByte;
-        }
-
-        // discard any other data
-        while (x < lsize) {
-            DECODEPCX(raw, dataByte, runLength);
-            x++;
-        }
-        while (runLength-- > 0)
-            x++;
+        *height = h;
     }
 
-    if (raw - (byte*)pcx > len) {
-        ri.Printf(PRINT_DEVELOPER, "PCX file %s was malformed", filename);
-        ri.Free(*pic);
-        *pic = NULL;
-    }
-
+    ri.Hunk_FreeTempMemory(pic8);
     ri.FS_FreeFile(pcx);
-}
-
-/*
-==============
-LoadPCX32
-==============
-*/
-static void LoadPCX32(const char* filename, byte** pic, int* width, int* height)
-{
-    byte* palette;
-    byte* pic8;
-    int i, c, p;
-    byte* pic32;
-
-    LoadPCX(filename, &pic8, &palette, width, height);
-    if (!pic8) {
-        *pic = NULL;
-        return;
-    }
-
-    c = (*width) * (*height);
-    pic32 = *pic = R_GetImageBuffer(4 * c, BUFFER_IMAGE);
-    for (i = 0; i < c; i++) {
-        p = pic8[i];
-        pic32[0] = palette[p * 3];
-        pic32[1] = palette[p * 3 + 1];
-        pic32[2] = palette[p * 3 + 2];
-        pic32[3] = 255;
-        pic32 += 4;
-    }
-
-    ri.Free(pic8);
-    ri.Free(palette);
 }
 
 /*
@@ -1385,11 +1364,13 @@ LoadTGA
 */
 void LoadTGA(const char* name, byte** pic, int* width, int* height)
 {
-    int columns, rows, numPixels;
+    unsigned columns, rows, numPixels;
     byte* pixbuf;
     int row, column;
     byte* buf_p;
     byte* buffer;
+    byte* end;
+    int length;
     TargaHeader targa_header;
     byte* targa_rgba;
 
@@ -1398,12 +1379,17 @@ void LoadTGA(const char* name, byte** pic, int* width, int* height)
     //
     // load the file
     //
-    ri.FS_ReadFile((char*)name, (void**)&buffer);
+    length = ri.FS_ReadFile((char*)name, (void**)&buffer);
     if (!buffer) {
         return;
     }
 
+    if (length < 18) {
+        ri.Error(ERR_DROP, "LoadTGA: header too short (%s)\n", name);
+    }
+
     buf_p = buffer;
+    end = buffer + length;
 
     targa_header.id_length = *buf_p++;
     targa_header.colormap_type = *buf_p++;
@@ -1441,7 +1427,11 @@ void LoadTGA(const char* name, byte** pic, int* width, int* height)
 
     columns = targa_header.width;
     rows = targa_header.height;
-    numPixels = columns * rows;
+    numPixels = columns * rows * 4;
+
+    if (!columns || !rows || numPixels > 0x7FFFFFFF || numPixels / columns / 4 != rows) {
+        ri.Error(ERR_DROP, "LoadTGA: %s has an invalid image size\n", name);
+    }
 
     if (width) {
         *width = columns;
@@ -1450,13 +1440,19 @@ void LoadTGA(const char* name, byte** pic, int* width, int* height)
         *height = rows;
     }
 
-    targa_rgba = R_GetImageBuffer(numPixels * 4, BUFFER_IMAGE);
+    targa_rgba = R_GetImageBuffer(numPixels, BUFFER_IMAGE);
     *pic = targa_rgba;
 
     if (targa_header.id_length != 0) {
+        if (buf_p + targa_header.id_length > end) {
+            ri.Error(ERR_DROP, "LoadTGA: header too short (%s)\n", name);
+        }
         buf_p += targa_header.id_length; // skip TARGA image comment
     }
     if (targa_header.image_type == 2 || targa_header.image_type == 3) {
+        if (buf_p + columns * rows * targa_header.pixel_size / 8 > end) {
+            ri.Error(ERR_DROP, "LoadTGA: file truncated (%s)\n", name);
+        }
         // Uncompressed RGB or gray scale image
         for (row = rows - 1; row >= 0; row--) {
             pixbuf = targa_rgba + row * columns * 4;
@@ -1510,9 +1506,15 @@ void LoadTGA(const char* name, byte** pic, int* width, int* height)
         for (row = rows - 1; row >= 0; row--) {
             pixbuf = targa_rgba + row * columns * 4;
             for (column = 0; column < columns;) {
+                if (buf_p + 1 > end) {
+                    ri.Error(ERR_DROP, "LoadTGA: file truncated (%s)\n", name);
+                }
                 packetHeader = *buf_p++;
                 packetSize = 1 + (packetHeader & 0x7f);
                 if (packetHeader & 0x80) { // run-length packet
+                    if (buf_p + targa_header.pixel_size / 8 > end) {
+                        ri.Error(ERR_DROP, "LoadTGA: file truncated (%s)\n", name);
+                    }
                     switch (targa_header.pixel_size) {
                     case 24:
                         blue = *buf_p++;
@@ -1548,6 +1550,9 @@ void LoadTGA(const char* name, byte** pic, int* width, int* height)
                         }
                     }
                 } else { // non run-length packet
+                    if (buf_p + targa_header.pixel_size / 8 * packetSize > end) {
+                        ri.Error(ERR_DROP, "LoadTGA: file truncated (%s)\n", name);
+                    }
                     for (j = 0; j < packetSize; j++) {
                         switch (targa_header.pixel_size) {
                         case 24:

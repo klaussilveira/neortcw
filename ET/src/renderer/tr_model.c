@@ -33,12 +33,12 @@ If you have questions concerning this license or the applicable additional terms
 #define LL(x) x = LittleLong(x)
 
 // Ridah
-static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* mod_name);
+static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, int fileSize, const char* mod_name);
 // done.
-static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* name);
-static qboolean R_LoadMDS(model_t* mod, void* buffer, const char* name);
-static qboolean R_LoadMDM(model_t* mod, void* buffer, const char* name);
-static qboolean R_LoadMDX(model_t* mod, void* buffer, const char* name);
+static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, int fileSize, const char* name);
+static qboolean R_LoadMDS(model_t* mod, void* buffer, int fileSize, const char* name);
+static qboolean R_LoadMDM(model_t* mod, void* buffer, int fileSize, const char* name);
+static qboolean R_LoadMDX(model_t* mod, void* buffer, int fileSize, const char* name);
 
 model_t* loadmodel;
 
@@ -151,6 +151,7 @@ qhandle_t RE_RegisterModel(const char* name)
     qboolean loaded;
     qhandle_t hModel;
     int numLoaded;
+    int filelen;
     char filename[1024];
 
     if (!name || !name[0]) {
@@ -213,17 +214,17 @@ qhandle_t RE_RegisterModel(const char* name)
 
     if (strstr(name, ".mds") || strstr(name, ".mdm") || strstr(name, ".mdx")) { // try loading skeletal file
         loaded = qfalse;
-        ri.FS_ReadFile(name, (void**)&buf);
+        filelen = ri.FS_ReadFile(name, (void**)&buf);
         if (buf) {
             loadmodel = mod;
 
             ident = LittleLong(*(unsigned*)buf);
             if (ident == MDS_IDENT) {
-                loaded = R_LoadMDS(mod, buf, name);
+                loaded = R_LoadMDS(mod, buf, filelen, name);
             } else if (ident == MDM_IDENT) {
-                loaded = R_LoadMDM(mod, buf, name);
+                loaded = R_LoadMDM(mod, buf, filelen, name);
             } else if (ident == MDX_IDENT) {
-                loaded = R_LoadMDX(mod, buf, name);
+                loaded = R_LoadMDX(mod, buf, filelen, name);
             }
 
             ri.FS_FreeFile(buf);
@@ -249,11 +250,11 @@ qhandle_t RE_RegisterModel(const char* name)
         }
 
         filename[strlen(filename) - 1] = 'c'; // try MDC first
-        ri.FS_ReadFile(filename, (void**)&buf);
+        filelen = ri.FS_ReadFile(filename, (void**)&buf);
 
         if (!buf) {
             filename[strlen(filename) - 1] = '3'; // try MD3 second
-            ri.FS_ReadFile(filename, (void**)&buf);
+            filelen = ri.FS_ReadFile(filename, (void**)&buf);
             if (!buf) {
                 continue;
             }
@@ -269,9 +270,9 @@ qhandle_t RE_RegisterModel(const char* name)
         }
 
         if (ident == MD3_IDENT) {
-            loaded = R_LoadMD3(mod, lod, buf, name);
+            loaded = R_LoadMD3(mod, lod, buf, filelen, name);
         } else {
-            loaded = R_LoadMDC(mod, lod, buf, name);
+            loaded = R_LoadMDC(mod, lod, buf, filelen, name);
         }
         // done.
 
@@ -746,7 +747,7 @@ static qboolean R_MDC_ConvertMD3( model_t *mod, int lod, const char *mod_name ) 
 R_LoadMDC
 =================
 */
-static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* mod_name)
+static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, int fileSize, const char* mod_name)
 {
     int i, j;
     mdcHeader_t* pinmodel;
@@ -773,6 +774,10 @@ static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* mod_n
 
     mod->type = MOD_MDC;
     size = LittleLong(pinmodel->ofsEnd);
+    if (size < 1 || size > fileSize) {
+        ri.Printf(PRINT_WARNING, "R_LoadMDC: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
     mod->dataSize += size;
     mod->model.mdc[lod] = ri.Hunk_Alloc(size, h_low);
 
@@ -793,6 +798,15 @@ static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* mod_n
 
     if (mod->model.mdc[lod]->numFrames < 1) {
         ri.Printf(PRINT_WARNING, "R_LoadMDC: %s has no frames\n", mod_name);
+        return qfalse;
+    }
+
+    if (mod->model.mdc[lod]->ofsFrames > size || mod->model.mdc[lod]->ofsTags > size || mod->model.mdc[lod]->ofsSurfaces > size) {
+        ri.Printf(PRINT_WARNING, "R_LoadMDC: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
+    if ((unsigned)(mod->model.mdc[lod]->numFrames | mod->model.mdc[lod]->numTags | mod->model.mdc[lod]->numSkins) > (1 << 20)) {
+        ri.Printf(PRINT_WARNING, "R_LoadMDC: %s has a corrupted header\n", mod_name);
         return qfalse;
     }
 
@@ -860,6 +874,7 @@ static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* mod_n
         surf->ident = SF_MDC;
 
         // lowercase the surface name so skin compares are faster
+        surf->name[sizeof(surf->name) - 1] = '\0';
         Q_strlwr(surf->name);
 
         // strip off a trailing _1 or _2
@@ -945,7 +960,7 @@ static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* mod_n
 R_LoadMD3
 =================
 */
-static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* mod_name)
+static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, int fileSize, const char* mod_name)
 {
     int i, j;
     md3Header_t* pinmodel;
@@ -971,6 +986,10 @@ static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* mod_n
 
     mod->type = MOD_MESH;
     size = LittleLong(pinmodel->ofsEnd);
+    if (size < 1 || size > fileSize) {
+        ri.Printf(PRINT_WARNING, "R_LoadMD3: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
     mod->dataSize += size;
     mod->model.md3[lod] = ri.Hunk_Alloc(size, h_low);
 
@@ -988,6 +1007,15 @@ static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* mod_n
 
     if (mod->model.md3[lod]->numFrames < 1) {
         ri.Printf(PRINT_WARNING, "R_LoadMD3: %s has no frames\n", mod_name);
+        return qfalse;
+    }
+
+    if (mod->model.md3[lod]->ofsFrames > size || mod->model.md3[lod]->ofsTags > size || mod->model.md3[lod]->ofsSurfaces > size) {
+        ri.Printf(PRINT_WARNING, "R_LoadMD3: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
+    if ((unsigned)(mod->model.md3[lod]->numFrames | mod->model.md3[lod]->numTags | mod->model.md3[lod]->numSkins) > (1 << 20)) {
+        ri.Printf(PRINT_WARNING, "R_LoadMD3: %s has a corrupted header\n", mod_name);
         return qfalse;
     }
 
@@ -1064,6 +1092,7 @@ static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* mod_n
         surf->ident = SF_MD3;
 
         // lowercase the surface name so skin compares are faster
+        surf->name[sizeof(surf->name) - 1] = '\0';
         Q_strlwr(surf->name);
 
         // strip off a trailing _1 or _2
@@ -1128,7 +1157,7 @@ static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* mod_n
 R_LoadMDS
 =================
 */
-static qboolean R_LoadMDS(model_t* mod, void* buffer, const char* mod_name)
+static qboolean R_LoadMDS(model_t* mod, void* buffer, int fileSize, const char* mod_name)
 {
     int i, j, k;
     mdsHeader_t *pinmodel, *mds;
@@ -1155,6 +1184,10 @@ static qboolean R_LoadMDS(model_t* mod, void* buffer, const char* mod_name)
 
     mod->type = MOD_MDS;
     size = LittleLong(pinmodel->ofsEnd);
+    if (size < 1 || size > fileSize) {
+        ri.Printf(PRINT_WARNING, "R_LoadMDS: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
     mod->dataSize += size;
     mds = mod->model.mds = ri.Hunk_Alloc(size, h_low);
 
@@ -1326,7 +1359,7 @@ static qboolean R_LoadMDS(model_t* mod, void* buffer, const char* mod_name)
 R_LoadMDM
 =================
 */
-static qboolean R_LoadMDM(model_t* mod, void* buffer, const char* mod_name)
+static qboolean R_LoadMDM(model_t* mod, void* buffer, int fileSize, const char* mod_name)
 {
     int i, j, k;
     mdmHeader_t *pinmodel, *mdm;
@@ -1351,6 +1384,10 @@ static qboolean R_LoadMDM(model_t* mod, void* buffer, const char* mod_name)
 
     mod->type = MOD_MDM;
     size = LittleLong(pinmodel->ofsEnd);
+    if (size < 1 || size > fileSize) {
+        ri.Printf(PRINT_WARNING, "R_LoadMDM: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
     mod->dataSize += size;
     mdm = mod->model.mdm = ri.Hunk_Alloc(size, h_low);
 
@@ -1522,7 +1559,7 @@ static qboolean R_LoadMDM(model_t* mod, void* buffer, const char* mod_name)
 R_LoadMDX
 =================
 */
-static qboolean R_LoadMDX(model_t* mod, void* buffer, const char* mod_name)
+static qboolean R_LoadMDX(model_t* mod, void* buffer, int fileSize, const char* mod_name)
 {
     int i, j;
     mdxHeader_t *pinmodel, *mdx;
@@ -1544,6 +1581,10 @@ static qboolean R_LoadMDX(model_t* mod, void* buffer, const char* mod_name)
 
     mod->type = MOD_MDX;
     size = LittleLong(pinmodel->ofsEnd);
+    if (size < 1 || size > fileSize) {
+        ri.Printf(PRINT_WARNING, "R_LoadMDX: %s has a corrupted header\n", mod_name);
+        return qfalse;
+    }
     mod->dataSize += size;
     mdx = mod->model.mdx = ri.Hunk_Alloc(size, h_low);
 

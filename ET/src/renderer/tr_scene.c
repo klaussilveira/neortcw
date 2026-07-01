@@ -121,6 +121,7 @@ void RE_ClearScene(void)
     r_firstSceneCorona = r_numcoronas;
     r_firstSceneEntity = r_numentities;
     r_firstScenePoly = r_numpolys;
+    r_firstScenePolybuffer = r_numpolybuffers;
 }
 
 /*
@@ -555,7 +556,7 @@ void RE_RenderScene(const refdef_t* fd)
 
     // derived info
 
-    tr.refdef.floatTime = tr.refdef.time * 0.001f;
+    tr.refdef.floatTime = (double)tr.refdef.time * 0.001;
 
     tr.refdef.numDrawSurfs = r_firstSceneDrawSurf;
     tr.refdef.drawSurfs = backEndData[tr.smpFrame]->drawSurfs;

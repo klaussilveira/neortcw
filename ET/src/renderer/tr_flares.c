@@ -221,29 +221,35 @@ void RB_AddDlightFlares(void)
     dlight_t* l;
     int i, j, k;
     int id = 0;
-    fog_t* fog;
+    fog_t* fog = NULL;
 
     if (r_flares->integer < 2) {
         return;
     }
 
     l = backEnd.refdef.dlights;
-    fog = tr.world->fogs;
+    if (tr.world) {
+        fog = tr.world->fogs;
+    }
     for (i = 0; i < backEnd.refdef.num_dlights; i++, l++) {
 
-        // find which fog volume the light is in
-        for (j = 1; j < tr.world->numfogs; j++) {
-            fog = &tr.world->fogs[j];
-            for (k = 0; k < 3; k++) {
-                if (l->origin[k] < fog->bounds[0][k] || l->origin[k] > fog->bounds[1][k]) {
+        if (fog) {
+            // find which fog volume the light is in
+            for (j = 1; j < tr.world->numfogs; j++) {
+                fog = &tr.world->fogs[j];
+                for (k = 0; k < 3; k++) {
+                    if (l->origin[k] < fog->bounds[0][k] || l->origin[k] > fog->bounds[1][k]) {
+                        break;
+                    }
+                }
+                if (k == 3) {
                     break;
                 }
             }
-            if (k == 3) {
-                break;
+            if (j == tr.world->numfogs) {
+                j = 0;
             }
-        }
-        if (j == tr.world->numfogs) {
+        } else {
             j = 0;
         }
 
@@ -369,6 +375,7 @@ void RB_RenderFlare(flare_t* f)
     float size;
     vec3_t color;
     int iColor[3];
+    float distance;
 
     backEnd.pc.c_flareRenders++;
 
@@ -386,7 +393,14 @@ void RB_RenderFlare(flare_t* f)
     iColor[1] = color[1] * 255;
     iColor[2] = color[2] * 255;
 
-    size = backEnd.viewParms.viewportWidth * ((r_flareSize->value * f->scale) / 640.0 + 8 / -f->eyeZ);
+    // We don't want too big values anyways when dividing by distance.
+    if (f->eyeZ > -1.0f) {
+        distance = 1.0f;
+    } else {
+        distance = -f->eyeZ;
+    }
+
+    size = backEnd.viewParms.viewportWidth * ((r_flareSize->value * f->scale) / 640.0 + 8 / distance);
 
     RB_BeginSurface(tr.flareShader, f->fogNum);
 

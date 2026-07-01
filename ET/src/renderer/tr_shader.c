@@ -971,8 +971,8 @@ static qboolean ParseStage(shaderStage_t* stage, char** text)
                 if (token[0] == 0) {
                     break;
                 }
-                strcat(buffer, token);
-                strcat(buffer, " ");
+                Q_strcat(buffer, sizeof(buffer), token);
+                Q_strcat(buffer, sizeof(buffer), " ");
             }
 
             ParseTexMod(buffer, stage);
@@ -1424,6 +1424,10 @@ static qboolean ParseShader(char** text)
         }
         // stage definition
         else if (token[0] == '{') {
+            if (s >= MAX_SHADER_STAGES) {
+                ri.Printf(PRINT_WARNING, "WARNING: too many stages in shader %s (max is %i)\n", shader.name, MAX_SHADER_STAGES);
+                return qfalse;
+            }
             if (!ParseStage(&stages[s], text)) {
                 return qfalse;
             }

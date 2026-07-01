@@ -468,7 +468,7 @@ typedef struct {
     byte areamask[MAX_MAP_AREA_BYTES];
     qboolean areamaskModified; // qtrue if areamask changed since last scene
 
-    float floatTime; // tr.refdef.time / 1000.0
+    double floatTime; // tr.refdef.time / 1000.0
 
     // text messages for deform text shaders
     char text[MAX_RENDER_STRINGS][MAX_RENDER_STRING_LENGTH];
