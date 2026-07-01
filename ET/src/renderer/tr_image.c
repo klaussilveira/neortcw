@@ -1659,9 +1659,10 @@ static void LoadJPG(const char* filename, unsigned char** pic, int* width, int* 
 
     /* Step 4: set parameters for decompression */
 
-    /* In this example, we don't need to change any of the defaults set by
-     * jpeg_read_header(), so we do nothing here.
+    /* Make sure it always converts images to RGB color space. This will
+     * automatically convert 8-bit greyscale images to RGB as well.
      */
+    cinfo.out_color_space = JCS_RGB;
 
     /* Step 5: Start decompressor */
 
@@ -1679,7 +1680,7 @@ static void LoadJPG(const char* filename, unsigned char** pic, int* width, int* 
     /* JSAMPLEs per row in output buffer */
     row_stride = cinfo.output_width * cinfo.output_components;
 
-    out = R_GetImageBuffer(cinfo.output_width * cinfo.output_height * cinfo.output_components, BUFFER_IMAGE);
+    out = R_GetImageBuffer(cinfo.output_width * cinfo.output_height * 4, BUFFER_IMAGE);
 
     *pic = out;
     *width = cinfo.output_width;
@@ -1701,17 +1702,24 @@ static void LoadJPG(const char* filename, unsigned char** pic, int* width, int* 
         (void)jpeg_read_scanlines(&cinfo, buffer, 1);
     }
 
-    // clear all the alphas to 255
+    // expand from RGB to RGBA, working backwards so the source and
+    // destination can share the same buffer
     {
-        int i, j;
+        unsigned pixelcount, sindex, dindex;
         byte* buf;
 
         buf = *pic;
 
-        j = cinfo.output_width * cinfo.output_height * 4;
-        for (i = 3; i < j; i += 4) {
-            buf[i] = 255;
-        }
+        pixelcount = cinfo.output_width * cinfo.output_height;
+        sindex = pixelcount * cinfo.output_components;
+        dindex = pixelcount * 4;
+
+        do {
+            buf[--dindex] = 255;
+            buf[--dindex] = buf[--sindex];
+            buf[--dindex] = buf[--sindex];
+            buf[--dindex] = buf[--sindex];
+        } while (sindex);
     }
 
     /* Step 7: Finish decompression */
