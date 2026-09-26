@@ -1110,10 +1110,10 @@ char* Sys_GetDLLName(const char* name);
 // fqpath param added 2/15/02 by T.Ray - Sys_LoadDll is only called in vm.c at this time
 #ifdef __EMSCRIPTEN__
 typedef intptr_t(QDECL* vmMainProc)(int callNum, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11);
-void* QDECL Sys_LoadDll(const char* name, char* fqpath, vmMainProc* entryPoint, intptr_t(QDECL* systemcalls)(intptr_t, ...));
 #else
-void* QDECL Sys_LoadDll(const char* name, char* fqpath, intptr_t(QDECL** entryPoint)(int, ...), intptr_t(QDECL* systemcalls)(intptr_t, ...));
+typedef intptr_t(QDECL* vmMainProc)(intptr_t callNum, intptr_t arg0, intptr_t arg1, intptr_t arg2, intptr_t arg3, intptr_t arg4, intptr_t arg5, intptr_t arg6, intptr_t arg7, intptr_t arg8, intptr_t arg9, intptr_t arg10, intptr_t arg11);
 #endif
+void* QDECL Sys_LoadDll(const char* name, char* fqpath, vmMainProc* entryPoint, intptr_t(QDECL* systemcalls)(intptr_t, ...));
 void Sys_UnloadDll(void* dllHandle);
 
 void Sys_UnloadGame(void);

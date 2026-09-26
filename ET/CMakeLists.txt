@@ -491,7 +491,7 @@ if(EMSCRIPTEN)
 endif()
 
 # Renderer OpenGL 1 (shared library)
-if(ET_BUILD_CLIENT AND USE_RENDERER_DLOPEN)
+if(ET_BUILD_CLIENT AND USE_RENDERER_DLOPEN AND NOT APPLE)
     add_library(
         renderer_et_opengl1
         SHARED
@@ -798,7 +798,7 @@ endif()
 # Install rules
 if(ET_BUILD_CLIENT)
     install(TARGETS iowolfet RUNTIME DESTINATION bin)
-    if(USE_RENDERER_DLOPEN)
+    if(USE_RENDERER_DLOPEN AND NOT APPLE)
         install(TARGETS renderer_et_opengl1 LIBRARY DESTINATION bin)
     endif()
 endif()
