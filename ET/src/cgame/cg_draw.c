@@ -606,7 +606,9 @@ static void CG_DrawUpperRight(void)
 
     if (CG_IsOnFireteam(cg.clientNum)) {
         rectDef_t rect = { 10, 10, 100, 100 };
+        CG_SetScreenPlacement(PLACE_LEFT);
         CG_DrawFireTeamOverlay(&rect);
+        CG_SetScreenPlacement(PLACE_CENTER);
     } else {
         //		CG_DrawTeamOverlay( 0 );
     }
@@ -614,6 +616,8 @@ static void CG_DrawUpperRight(void)
     if (!(cg.snap->ps.pm_flags & PMF_LIMBO) && (cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR) && (cgs.autoMapExpanded || (!cgs.autoMapExpanded && (cg.time - cgs.autoMapExpandTime < 250.f)))) {
         return;
     }
+
+    CG_SetScreenPlacement(PLACE_RIGHT);
 
     if (cg_drawRoundTimer.integer) {
         y = CG_DrawTimer(y);
@@ -626,6 +630,8 @@ static void CG_DrawUpperRight(void)
     if (cg_drawSnapshot.integer) {
         y = CG_DrawSnapshot(y);
     }
+
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 /*
@@ -924,7 +930,9 @@ static void CG_DrawDisconnect(void)
     x = 640 - 48;
     y = 480 - 200;
 
+    CG_SetScreenPlacement(PLACE_RIGHT);
     CG_DrawPic(x, y, 48, 48, cgs.media.disconnectIcon);
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 #define MAX_LAGOMETER_PING 900
@@ -954,6 +962,8 @@ static void CG_DrawLagometer(void)
     //
     x = 640 - 48;
     y = 480 - 200;
+
+    CG_SetScreenPlacement(PLACE_RIGHT);
 
     trap_R_SetColor(NULL);
     CG_DrawPic(x, y, 48, 48, cgs.media.lagometerShader);
@@ -1039,6 +1049,8 @@ static void CG_DrawLagometer(void)
     ) {
         CG_DrawBigString(ax, ay, "snc", 1.0);
     }
+
+    CG_SetScreenPlacement(PLACE_CENTER);
 
     CG_DrawDisconnect();
 }
@@ -1252,6 +1264,7 @@ static void CG_DrawWeapReticle(void)
 {
     vec4_t color = { 0, 0, 0, 1 };
     qboolean fg, garand, k43;
+    float pillar = cgs.screenXBias / cgs.screenXScale;
 
     // DHM - Nerve :: So that we will draw reticle
     if ((cg.snap->ps.pm_flags & PMF_FOLLOW) || cg.demoPlayback) {
@@ -1266,8 +1279,8 @@ static void CG_DrawWeapReticle(void)
 
     if (fg) {
         // sides
-        CG_FillRect(0, 0, 80, 480, color);
-        CG_FillRect(560, 0, 80, 480, color);
+        CG_FillRect(-pillar, 0, 80 + pillar, 480, color);
+        CG_FillRect(560, 0, 80 + pillar, 480, color);
 
         // center
         if (cgs.media.reticleShaderSimple) {
@@ -1293,8 +1306,8 @@ static void CG_DrawWeapReticle(void)
         CG_FillRect(319, 327, 3, 151, color); // bot center bot
     } else if (garand) {
         // sides
-        CG_FillRect(0, 0, 80, 480, color);
-        CG_FillRect(560, 0, 80, 480, color);
+        CG_FillRect(-pillar, 0, 80 + pillar, 480, color);
+        CG_FillRect(560, 0, 80 + pillar, 480, color);
 
         // center
         if (cgs.media.reticleShaderSimple) {
@@ -1308,8 +1321,8 @@ static void CG_DrawWeapReticle(void)
         CG_FillRect(380, 239, 177, 2, color); // right
     } else if (k43) {
         // sides
-        CG_FillRect(0, 0, 80, 480, color);
-        CG_FillRect(560, 0, 80, 480, color);
+        CG_FillRect(-pillar, 0, 80 + pillar, 480, color);
+        CG_FillRect(560, 0, 80 + pillar, 480, color);
 
         // center
         if (cgs.media.reticleShaderSimple) {
@@ -1763,6 +1776,8 @@ static void CG_DrawCrosshair(void)
     w *= (1 + f * 2.0);
     h *= (1 + f * 2.0);
 
+    CG_SetScreenPlacement(PLACE_LEFT);
+
     x = cg_crosshairX.integer;
     y = cg_crosshairY.integer;
     CG_AdjustFrom640(&x, &y, &w, &h);
@@ -1783,6 +1798,8 @@ static void CG_DrawCrosshair(void)
 
         trap_R_DrawStretchPic(x + 0.5 * (cg.refdef_current->width - w), y + 0.5 * (cg.refdef_current->height - h), w, h, 0, 0, 1, 1, cg.crosshairShaderAlt[cg_drawCrosshair.integer % NUM_CROSSHAIRS]);
     }
+
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 static void CG_DrawNoShootIcon(void)
@@ -1812,7 +1829,9 @@ static void CG_DrawNoShootIcon(void)
 
     x = cg_crosshairX.integer + 1;
     y = cg_crosshairY.integer + 1;
+    CG_SetScreenPlacement(PLACE_LEFT);
     CG_AdjustFrom640(&x, &y, &w, &h);
+    CG_SetScreenPlacement(PLACE_CENTER);
 
     // FIXME precache
     trap_R_DrawStretchPic(x + 0.5 * (cg.refdef_current->width - w), y + 0.5 * (cg.refdef_current->height - h), w, h, 0, 0, 1, 1, cgs.media.friendShader);
@@ -3980,6 +3999,8 @@ static void CG_DrawPlayerStatus(void)
     rectDef_t rect;
     //	vec4_t			colorFaded = { 1.f, 1.f, 1.f, 0.3f };
 
+    CG_SetScreenPlacement(PLACE_RIGHT);
+
     // Draw weapon icon and overheat bar
     rect.x = 640 - 82;
     rect.y = 480 - 56;
@@ -4010,6 +4031,8 @@ static void CG_DrawPlayerStatus(void)
         //		CG_DrawPic( 640 - 2 * ( 12 + 2 ) - 16 - 4, 480 - 1 * ( 16 + 2 ) - 4, 16, 16, cgs.media.SPPlayerInfoAmmoIcon );
     }
 
+    CG_SetScreenPlacement(PLACE_LEFT);
+
     // ==
     rect.x = 24;
     rect.y = 480 - 92;
@@ -4026,6 +4049,8 @@ static void CG_DrawPlayerStatus(void)
     CG_DrawStaminaBar(&rect);
     // ==
 
+    CG_SetScreenPlacement(PLACE_RIGHT);
+
     // ==
     rect.x = 640 - 16;
     rect.y = 480 - 92;
@@ -4033,6 +4058,8 @@ static void CG_DrawPlayerStatus(void)
     rect.h = 72;
     CG_DrawWeapRecharge(&rect);
     // ==
+
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 static void CG_DrawSkillBar(float x, float y, float w, float h, int skill)
@@ -4112,12 +4139,15 @@ static void CG_DrawPlayerStats(void)
     float w;
     vec_t* clr;
 
+    CG_SetScreenPlacement(PLACE_LEFT);
+
     str = va("%i", cg.snap->ps.stats[STAT_HEALTH]);
     w = CG_Text_Width_Ext(str, 0.25f, 0, &cgs.media.limboFont1);
     CG_Text_Paint_Ext(SKILLS_X - 28 - w, 480 - 4, 0.25f, 0.25f, colorWhite, str, 0, 0, ITEM_TEXTSTYLE_SHADOWED, &cgs.media.limboFont1);
     CG_Text_Paint_Ext(SKILLS_X - 28 + 2, 480 - 4, 0.2f, 0.2f, colorWhite, "HP", 0, 0, ITEM_TEXTSTYLE_SHADOWED, &cgs.media.limboFont1);
 
     if (cgs.gametype == GT_WOLF_LMS) {
+        CG_SetScreenPlacement(PLACE_CENTER);
         return;
     }
 
@@ -4142,6 +4172,8 @@ static void CG_DrawPlayerStats(void)
     CG_Text_Paint_Ext(SKILLS_X + 28 - w, 480 - 4, 0.25f, 0.25f, clr, str, 0, 0, ITEM_TEXTSTYLE_SHADOWED, &cgs.media.limboFont1);
     CG_Text_Paint_Ext(SKILLS_X + 28 + 2, 480 - 4, 0.2f, 0.2f, clr, "XP", 0, 0, ITEM_TEXTSTYLE_SHADOWED, &cgs.media.limboFont1);
 
+    CG_SetScreenPlacement(PLACE_RIGHT);
+
     // draw treasure icon if we have the flag
     // rain - #274 - use the playerstate instead of the clientinfo
     if (ps->powerups[PW_REDFLAG] || ps->powerups[PW_BLUEFLAG]) {
@@ -4150,6 +4182,8 @@ static void CG_DrawPlayerStats(void)
     } else if (ps->powerups[PW_OPS_DISGUISED]) { // Disguised?
         CG_DrawPic(640 - 40, 480 - 140 - value, 36, 36, ps->persistant[PERS_TEAM] == TEAM_AXIS ? cgs.media.alliedUniformShader : cgs.media.axisUniformShader);
     }
+
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 static char statsDebugStrings[6][512];
@@ -4205,6 +4239,8 @@ static void CG_DrawStatsDebug(void)
 
     i = statsDebugPos;
 
+    CG_SetScreenPlacement(PLACE_RIGHT);
+
     do {
         vec4_t colour;
 
@@ -4235,6 +4271,8 @@ static void CG_DrawStatsDebug(void)
             i = 6 - 1;
         }
     } while (i != statsDebugPos);
+
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 // bani
@@ -4340,7 +4378,9 @@ static void CG_Draw2D(void)
             }
         }
 
+        CG_SetScreenPlacement(PLACE_LEFT);
         CG_DrawVote();
+        CG_SetScreenPlacement(PLACE_CENTER);
 
         CG_DrawLagometer();
     }
@@ -4351,12 +4391,16 @@ static void CG_Draw2D(void)
             rectDef_t rect;
 
             if (cg.snap->ps.stats[STAT_HEALTH] > 0) {
+                CG_SetScreenPlacement(PLACE_LEFT);
                 CG_DrawPlayerStatusHead();
+                CG_SetScreenPlacement(PLACE_CENTER);
                 CG_DrawPlayerStatus();
                 CG_DrawPlayerStats();
             }
 
+            CG_SetScreenPlacement(PLACE_LEFT);
             CG_DrawLivesLeft();
+            CG_SetScreenPlacement(PLACE_CENTER);
 
             // Cursor hint
             rect.w = rect.h = 48;
@@ -4369,7 +4413,9 @@ static void CG_Draw2D(void)
             rect.y = 208;
             rect.w = 10;
             rect.h = 64;
+            CG_SetScreenPlacement(PLACE_LEFT);
             CG_DrawWeapStability(&rect);
+            CG_SetScreenPlacement(PLACE_CENTER);
 
             // Stats Debugging
             CG_DrawStatsDebug();
@@ -4380,8 +4426,11 @@ static void CG_Draw2D(void)
         }
 
         CG_DrawCenterString();
+        CG_SetScreenPlacement(PLACE_LEFT);
         CG_DrawPMItems();
+        CG_SetScreenPlacement(PLACE_RIGHT);
         CG_DrawPMItemsBig();
+        CG_SetScreenPlacement(PLACE_CENTER);
 
         CG_DrawFollow();
         CG_DrawWarmup();
@@ -4389,7 +4438,9 @@ static void CG_Draw2D(void)
         CG_DrawNotify();
 
         if (cg_drawCompass.integer) {
+            CG_SetScreenPlacement(PLACE_RIGHT);
             CG_DrawNewCompass();
+            CG_SetScreenPlacement(PLACE_CENTER);
         }
 
         CG_DrawObjectiveInfo();
@@ -4410,7 +4461,9 @@ static void CG_Draw2D(void)
     }
 
     if (cg.showFireteamMenu) {
+        CG_SetScreenPlacement(PLACE_LEFT);
         CG_Fireteams_Draw();
+        CG_SetScreenPlacement(PLACE_CENTER);
     }
 
     // Info overlays
@@ -4422,7 +4475,9 @@ static void CG_Draw2D(void)
     // Ridah, draw flash blends now
     CG_DrawFlashBlend();
 
+    CG_SetScreenPlacement(PLACE_LEFT);
     CG_DrawDemoRecording();
+    CG_SetScreenPlacement(PLACE_CENTER);
 }
 
 // NERVE - SMF
@@ -4604,6 +4659,9 @@ void CG_DrawActive(stereoFrame_t stereoView)
 
     if (cg.showGameView) {
         float x, y, w, h;
+
+        CG_FillRect(0, 0, 640, 480, colorBlack);
+
         x = LIMBO_3D_X;
         y = LIMBO_3D_Y;
         w = LIMBO_3D_W;
@@ -4616,7 +4674,7 @@ void CG_DrawActive(stereoFrame_t stereoView)
         cg.refdef_current->width = w;
         cg.refdef_current->height = h;
 
-        CG_Letterbox((LIMBO_3D_W / 640.f) * 100, (LIMBO_3D_H / 480.f) * 100, qfalse);
+        CG_Letterbox((w / cgs.glconfig.vidWidth) * 100, (h / cgs.glconfig.vidHeight) * 100, qfalse);
     }
 
     CG_ShakeCamera(); // NERVE - SMF

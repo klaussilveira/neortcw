@@ -313,9 +313,8 @@ static void CG_DrawGrid(float x, float y, float w, float h, mapScissor_t* scisso
             } else {
                 Vector4Set(line, x + grid_x, y + dim_y[0], 1.f, h);
             }
-            line[0] *= cgs.screenXScale;
-            line[1] *= cgs.screenYScale;
-            line[3] *= cgs.screenYScale;
+            CG_AdjustFrom640(&line[0], &line[1], &line[2], &line[3]);
+            line[2] = 1.f;
             trap_R_DrawStretchPic(line[0], line[1], line[2], line[3], 0, 0, 0, 1, cgs.media.whiteShader);
         }
 
@@ -341,9 +340,8 @@ static void CG_DrawGrid(float x, float y, float w, float h, mapScissor_t* scisso
             } else {
                 Vector4Set(line, x + dim_x[0], y + grid_y, w, 1);
             }
-            line[0] *= cgs.screenXScale;
-            line[1] *= cgs.screenYScale;
-            line[2] *= cgs.screenXScale;
+            CG_AdjustFrom640(&line[0], &line[1], &line[2], &line[3]);
+            line[3] = 1.f;
             trap_R_DrawStretchPic(line[0], line[1], line[2], line[3], 0, 0, 0, 1, cgs.media.whiteShader);
         }
         trap_R_SetColor(NULL);
@@ -390,9 +388,8 @@ static void CG_DrawGrid(float x, float y, float w, float h, mapScissor_t* scisso
             trap_R_SetColor(gridColour);
 
             Vector4Set(line, x + grid_x, y + dim_y[0], 1, dim_x[1] - dim_x[0]);
-            line[0] *= cgs.screenXScale;
-            line[1] *= cgs.screenYScale;
-            line[3] *= cgs.screenYScale;
+            CG_AdjustFrom640(&line[0], &line[1], &line[2], &line[3]);
+            line[2] = 1.f;
             trap_R_DrawStretchPic(line[0], line[1], line[2], line[3], 0, 0, 0, 1, cgs.media.whiteShader);
         }
 
@@ -406,9 +403,8 @@ static void CG_DrawGrid(float x, float y, float w, float h, mapScissor_t* scisso
             trap_R_SetColor(gridColour);
 
             Vector4Set(line, x + dim_x[0], y + grid_y, dim_y[1] - dim_y[0], 1);
-            line[0] *= cgs.screenXScale;
-            line[1] *= cgs.screenYScale;
-            line[2] *= cgs.screenXScale;
+            CG_AdjustFrom640(&line[0], &line[1], &line[2], &line[3]);
+            line[3] = 1.f;
             trap_R_DrawStretchPic(line[0], line[1], line[2], line[3], 0, 0, 0, 1, cgs.media.whiteShader);
         }
         trap_R_SetColor(NULL);

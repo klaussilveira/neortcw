@@ -7480,6 +7480,7 @@ void _UI_Init(qboolean inGameLoad)
     uiInfo.uiDC.xscale = uiInfo.uiDC.glconfig.vidWidth * (1.0 / 640.0);
     if (uiInfo.uiDC.glconfig.vidWidth * 480 > uiInfo.uiDC.glconfig.vidHeight * 640) {
         // wide screen
+        uiInfo.uiDC.xscale = uiInfo.uiDC.yscale;
         uiInfo.uiDC.bias = 0.5 * (uiInfo.uiDC.glconfig.vidWidth - (uiInfo.uiDC.glconfig.vidHeight * (640.0 / 480.0)));
     } else {
         // no wide screen

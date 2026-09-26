@@ -29,6 +29,18 @@ If you have questions concerning this license or the applicable additional terms
 // cg_drawtools.c -- helper functions called by cg_draw, cg_scoreboard, cg_info, etc
 #include "cg_local.h"
 
+static screenPlacement_e cg_horizontalPlacement = PLACE_CENTER;
+
+/*
+================
+CG_SetScreenPlacement
+================
+*/
+void CG_SetScreenPlacement(screenPlacement_e hpos)
+{
+    cg_horizontalPlacement = hpos;
+}
+
 /*
 ================
 CG_AdjustFrom640
@@ -56,9 +68,20 @@ void CG_AdjustFrom640(float* x, float* y, float* w, float* h)
             }*/
 
     // scale for screen sizes
-    *x *= cgs.screenXScale;
+    if (*x <= 0 && *x + *w >= SCREEN_WIDTH) {
+        *x *= cgs.glconfig.vidWidth / 640.0f;
+        *w *= cgs.glconfig.vidWidth / 640.0f;
+    } else {
+        *x *= cgs.screenXScale;
+        *w *= cgs.screenXScale;
+
+        if (cg_horizontalPlacement == PLACE_CENTER) {
+            *x += cgs.screenXBias;
+        } else if (cg_horizontalPlacement == PLACE_RIGHT) {
+            *x += cgs.screenXBias * 2;
+        }
+    }
     *y *= cgs.screenYScale;
-    *w *= cgs.screenXScale;
     *h *= cgs.screenYScale;
 }
 
