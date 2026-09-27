@@ -588,7 +588,7 @@ Used to load a development dll instead of a virtual machine
 fqpath param added 2/15/02 by T.Ray - Sys_LoadDll is only called in vm.c at this time
 =================
 */
-void* QDECL Sys_LoadDll(const char* name, char* fqpath, intptr_t(QDECL** entryPoint)(int, ...), intptr_t(QDECL* systemcalls)(intptr_t, ...))
+void* QDECL Sys_LoadDll(const char* name, char* fqpath, vmMainProc* entryPoint, intptr_t(QDECL* systemcalls)(intptr_t, ...))
 {
     void* libHandle;
     void (*dllEntry)(intptr_t (*syscallptr)(intptr_t, ...));
@@ -638,7 +638,7 @@ void* QDECL Sys_LoadDll(const char* name, char* fqpath, intptr_t(QDECL** entryPo
     Q_strncpyz(fqpath, fn, MAX_QPATH);
 
     dllEntry = (void (*)(intptr_t (*)(intptr_t, ...)))Sys_LoadFunction(libHandle, "dllEntry");
-    *entryPoint = (intptr_t(QDECL*)(int, ...))Sys_LoadFunction(libHandle, "vmMain");
+    *entryPoint = (vmMainProc)Sys_LoadFunction(libHandle, "vmMain");
 
     if (!*entryPoint || !dllEntry) {
         Com_Printf("Sys_LoadDll(%s) failed to find vmMain function:\n\"%s\" !\n", name, Sys_LibraryError());

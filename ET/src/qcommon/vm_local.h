@@ -143,11 +143,7 @@ struct vm_s {
 
     // for dynamic linked modules
     void* dllHandle;
-#ifdef __EMSCRIPTEN__
     vmMainProc entryPoint;
-#else
-    intptr_t(QDECL* entryPoint)(int callNum, ...);
-#endif
 
     // for interpreted modules
     qboolean currentlyInterpreting;

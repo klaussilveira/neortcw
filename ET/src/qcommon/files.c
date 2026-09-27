@@ -43,7 +43,7 @@ If you have questions concerning this license or the applicable additional terms
 #ifdef _WIN32
 #include <direct.h>
 #endif
-#if defined(__linux__) || defined(__EMSCRIPTEN__)
+#if defined(__linux__) || defined(__EMSCRIPTEN__) || defined(__APPLE__)
 #include <unistd.h>
 #endif
 

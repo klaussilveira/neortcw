@@ -1904,7 +1904,7 @@ void SaveJPG(char* filename, int quality, int image_width, int image_height, uns
      */
     cinfo.image_width = image_width; /* image width and height, in pixels */
     cinfo.image_height = image_height;
-    cinfo.input_components = 4;     /* # of color components per pixel */
+    cinfo.input_components = 3;     /* # of color components per pixel */
     cinfo.in_color_space = JCS_RGB; /* colorspace of input image */
     /* Now use the library's routine to set default compression parameters.
      * (You must set at least cinfo.in_color_space before calling this,
@@ -1931,7 +1931,7 @@ void SaveJPG(char* filename, int quality, int image_width, int image_height, uns
      * To keep things simple, we pass one scanline per call; you can pass
      * more if you wish, though.
      */
-    row_stride = image_width * 4; /* JSAMPLEs per row in image_buffer */
+    row_stride = image_width * 3; /* JSAMPLEs per row in image_buffer */
 
     while (cinfo.next_scanline < cinfo.image_height) {
         /* jpeg_write_scanlines expects an array of pointers to scanlines.
