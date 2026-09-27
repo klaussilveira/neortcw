@@ -639,6 +639,16 @@ void SV_DropClient(client_t* drop, const char* reason)
     // Free all allocated data on the client structure
     SV_FreeClient(drop);
 
+    // Reset the reliable sequence to the currently acknowledged command
+    // This prevents SV_AddServerCommand() from making another recursive call to SV_DropClient()
+    // if the client lacks sufficient space for another reliable command
+    // it also guarantees that the client receives both the print and disconnect commands
+    drop->reliableSequence = drop->reliableAcknowledge;
+    // Setting the gamestate message number to -1 ensures that SV_AddServerCommand()
+    // will not call SV_DropClient() again, even though it is unlikely the client
+    // will receive many server commands during the drop
+    drop->gamestateMessageNum = -1;
+
     // Ridah, no need to tell the player if an AI drops
     if (!(drop->gentity && drop->gentity->r.svFlags & SVF_CASTAI)) {
         // tell everyone why they got dropped
@@ -1311,7 +1321,10 @@ static void SV_VerifyPaks_f(client_t* cl)
             cl->lastSnapshotTime = 0;
             cl->state = CS_ACTIVE;
             SV_SendClientSnapshot(cl);
-            SV_DropClient(cl, "Unpure client detected. Invalid .PK3 files referenced!");
+            SV_DropClient(cl, "Unpure Client. "
+                              "You may need to enable in-game downloads "
+                              "to connect to this server (set "
+                              "cl_allowDownload 1)");
         }
     }
 }

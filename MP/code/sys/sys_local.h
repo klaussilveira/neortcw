@@ -64,3 +64,7 @@ void Sys_AnsiColorPrint(const char* msg);
 
 int Sys_PID(void);
 qboolean Sys_PIDIsRunning(int pid);
+
+qboolean Sys_OpenFolderInPlatformFileManager(const char* path);
+
+qboolean Sys_SetMaxFileLimit(void);

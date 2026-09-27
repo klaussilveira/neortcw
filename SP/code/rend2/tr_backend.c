@@ -447,6 +447,9 @@ void RB_BeginDrawingView(void)
     // we will only draw a sun if there was sky rendered in this view
     backEnd.skyRenderedThisView = qfalse;
 
+    // cache the clamped greyscale value
+    backEnd.greyscale = Com_Clamp(0.0f, 1.0f, r_greyscale->value);
+
     // clip to the plane of the portal
     if (backEnd.viewParms.isPortal) {
 #if 0
@@ -1125,6 +1128,7 @@ void RE_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte* d
 
 void RE_UploadCinematic(int w, int h, int cols, int rows, const byte* data, int client, qboolean dirty)
 {
+    byte* buffer;
     GLuint texture;
 
     if (!tr.scratchImage[client]) {
@@ -1138,7 +1142,18 @@ void RE_UploadCinematic(int w, int h, int cols, int rows, const byte* data, int 
     if (cols != tr.scratchImage[client]->width || rows != tr.scratchImage[client]->height) {
         tr.scratchImage[client]->width = tr.scratchImage[client]->uploadWidth = cols;
         tr.scratchImage[client]->height = tr.scratchImage[client]->uploadHeight = rows;
-        qglTextureImage2DEXT(texture, GL_TEXTURE_2D, 0, GL_RGB8, cols, rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+        if (qglesMajorVersion >= 1) {
+            buffer = ri.Hunk_AllocateTempMemory(3 * cols * rows);
+
+            R_ConvertTextureFormat(data, cols, rows, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+            qglTextureImage2DEXT(texture, GL_TEXTURE_2D, 0, GL_RGB, cols, rows, 0, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+
+            ri.Hunk_FreeTempMemory(buffer);
+        } else {
+            qglTextureImage2DEXT(texture, GL_TEXTURE_2D, 0, GL_RGB8, cols, rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        }
+
         qglTextureParameterfEXT(texture, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         qglTextureParameterfEXT(texture, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         qglTextureParameterfEXT(texture, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1147,7 +1162,16 @@ void RE_UploadCinematic(int w, int h, int cols, int rows, const byte* data, int 
         if (dirty) {
             // otherwise, just subimage upload it so that drivers can tell we are going to be changing
             // it and don't try and do a texture compression
-            qglTextureSubImage2DEXT(texture, GL_TEXTURE_2D, 0, 0, 0, cols, rows, GL_RGBA, GL_UNSIGNED_BYTE, data);
+            if (qglesMajorVersion >= 1) {
+                buffer = ri.Hunk_AllocateTempMemory(3 * cols * rows);
+
+                R_ConvertTextureFormat(data, cols, rows, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+                qglTextureSubImage2DEXT(texture, GL_TEXTURE_2D, 0, 0, 0, cols, rows, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+
+                ri.Hunk_FreeTempMemory(buffer);
+            } else {
+                qglTextureSubImage2DEXT(texture, GL_TEXTURE_2D, 0, 0, 0, cols, rows, GL_RGBA, GL_UNSIGNED_BYTE, data);
+            }
         }
     }
 }
@@ -1607,13 +1631,13 @@ const void* RB_DrawSurfs(const void* data)
 
             if (glRefConfig.occlusionQuery) {
                 tr.sunFlareQueryActive[tr.sunFlareQueryIndex] = qtrue;
-                qglBeginQuery(GL_SAMPLES_PASSED, tr.sunFlareQuery[tr.sunFlareQueryIndex]);
+                qglBeginQuery(glRefConfig.occlusionQueryTarget, tr.sunFlareQuery[tr.sunFlareQueryIndex]);
             }
 
             RB_DrawSun(0.3, tr.sunFlareShader);
 
             if (glRefConfig.occlusionQuery) {
-                qglEndQuery(GL_SAMPLES_PASSED);
+                qglEndQuery(glRefConfig.occlusionQueryTarget);
             }
 
             FBO_Bind(oldFbo);
@@ -1676,6 +1700,75 @@ const void* RB_DrawBuffer(const void* data)
     }
 
     return (const void*)(cmd + 1);
+}
+
+/*
+=============
+RB_DrawGreyscale
+
+=============
+*/
+static void RB_DrawGreyscale(const FBO_t* src)
+{
+    if (!src || !src->colorImage[0])
+        return;
+
+    FBO_Bind(NULL);
+    qglViewport(0, 0, glConfig.vidWidth, glConfig.vidHeight);
+    qglScissor(0, 0, glConfig.vidWidth, glConfig.vidHeight);
+    GL_State(GLS_DEPTHTEST_DISABLE | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO);
+
+    GLSL_BindProgram(&tr.greyscaleShader);
+    GLSL_SetUniformInt(&tr.greyscaleShader, UNIFORM_TEXTUREMAP, 0);
+    GLSL_SetUniformFloat(&tr.greyscaleShader, UNIFORM_GREYSCALE, backEnd.greyscale);
+    GL_BindToTMU(src->colorImage[0], 0);
+
+    vec4_t quadVerts[4] = {
+        { 0.0f, 0.0f, 0.0f, 1.0f },
+        { (float)glConfig.vidWidth, 0.0f, 0.0f, 1.0f },
+        { (float)glConfig.vidWidth, (float)glConfig.vidHeight, 0.0f, 1.0f },
+        { 0.0f, (float)glConfig.vidHeight, 0.0f, 1.0f },
+    };
+
+    vec2_t texCoords[4] = { { 0.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f } };
+
+    RB_InstantQuad2(quadVerts, texCoords);
+}
+
+/*
+=============
+RB_PresentToScreen
+
+=============
+*/
+static void RB_PresentToScreen(void)
+{
+    if (!glRefConfig.framebufferObject)
+        return;
+
+    const FBO_t* src = NULL;
+
+    if (tr.renderFbo && tr.renderFbo->colorImage[0]) {
+        // texture-backed render FBO
+        src = tr.renderFbo;
+    } else if (tr.msaaResolveFbo && r_hdr->integer) {
+        // Resolving an RGB16F MSAA FBO to the screen messes with the brightness, so resolve to an RGB16F FBO first
+        FBO_FastBlit(tr.renderFbo, NULL, tr.msaaResolveFbo, NULL, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        src = tr.msaaResolveFbo;
+    }
+
+    if (src) {
+        if (backEnd.greyscale > 0.0f) {
+            RB_DrawGreyscale(src);
+        } else {
+            FBO_FastBlit(src, NULL, NULL, NULL, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
+        return;
+    }
+
+    if (tr.renderFbo) {
+        FBO_FastBlit(tr.renderFbo, NULL, NULL, NULL, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
 }
 
 /*
@@ -1838,15 +1931,7 @@ const void* RB_SwapBuffers(const void* data)
         ri.Hunk_FreeTempMemory(stencilReadback);
     }
 
-    if (glRefConfig.framebufferObject) {
-        if (tr.msaaResolveFbo && r_hdr->integer) {
-            // Resolving an RGB16F MSAA FBO to the screen messes with the brightness, so resolve to an RGB16F FBO first
-            FBO_FastBlit(tr.renderFbo, NULL, tr.msaaResolveFbo, NULL, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-            FBO_FastBlit(tr.msaaResolveFbo, NULL, NULL, NULL, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        } else if (tr.renderFbo) {
-            FBO_FastBlit(tr.renderFbo, NULL, NULL, NULL, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        }
-    }
+    RB_PresentToScreen();
 
     if (!glState.finishCalled) {
         qglFinish();

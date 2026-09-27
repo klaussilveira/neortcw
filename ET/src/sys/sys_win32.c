@@ -882,3 +882,13 @@ void Sys_OpenURL(const char* url, qboolean doexit)
     }
 }
 //----(SA)	end
+
+/*
+=================
+Sys_SetMaxFileLimit
+=================
+*/
+qboolean Sys_SetMaxFileLimit(void)
+{
+    return qtrue;
+}

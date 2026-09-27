@@ -38,7 +38,14 @@ int main(int argc, char** argv)
         end[1] = '\0';
 
         // Write line enquoted, with a newline
-        fprintf(ofp, "\"%s\\n\"\n", buffer);
+        fputc('"', ofp);
+        for (char* c = buffer; *c; c++) {
+            if (*c == '"' || *c == '\\') {
+                fputc('\\', ofp);
+            }
+            fputc(*c, ofp);
+        }
+        fprintf(ofp, "\\n\"\n");
     }
 
     fprintf(ofp, ";\n");

@@ -1299,7 +1299,7 @@ Handles horizontal scrolling and cursor blinking
 x, y, and width are in pixels
 ===================
 */
-void Field_VariableSizeDraw(field_t* edit, int x, int y, int width, int size, qboolean showCursor, qboolean noColorEscape)
+static void Field_VariableSizeDraw(field_t* edit, int x, int y, int width, int size, qboolean drawSmall, qboolean showCursor, qboolean noColorEscape)
 {
     int len;
     int drawLen;
@@ -1337,7 +1337,7 @@ void Field_VariableSizeDraw(field_t* edit, int x, int y, int width, int size, qb
     str[drawLen] = 0;
 
     // draw it
-    if (size == SMALLCHAR_WIDTH) {
+    if (drawSmall) {
         float color[4];
 
         color[0] = color[1] = color[2] = color[3] = 1.0;
@@ -1361,7 +1361,7 @@ void Field_VariableSizeDraw(field_t* edit, int x, int y, int width, int size, qb
 
         i = drawLen - strlen(str);
 
-        if (size == SMALLCHAR_WIDTH) {
+        if (drawSmall) {
             SCR_DrawSmallChar(x + (edit->cursor - prestep - i) * size, y, cursorChar);
         } else {
             str[0] = cursorChar;
@@ -1373,12 +1373,12 @@ void Field_VariableSizeDraw(field_t* edit, int x, int y, int width, int size, qb
 
 void Field_Draw(field_t* edit, int x, int y, int width, qboolean showCursor, qboolean noColorEscape)
 {
-    Field_VariableSizeDraw(edit, x, y, width, SMALLCHAR_WIDTH, showCursor, noColorEscape);
+    Field_VariableSizeDraw(edit, x, y, width, g_smallchar_width, qtrue, showCursor, noColorEscape);
 }
 
 void Field_BigDraw(field_t* edit, int x, int y, int width, qboolean showCursor, qboolean noColorEscape)
 {
-    Field_VariableSizeDraw(edit, x, y, width, BIGCHAR_WIDTH, showCursor, noColorEscape);
+    Field_VariableSizeDraw(edit, x, y, width, BIGCHAR_WIDTH, qfalse, showCursor, noColorEscape);
 }
 
 /*

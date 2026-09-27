@@ -878,7 +878,10 @@ static qboolean R_LoadMDC(model_t* mod, int lod, void* buffer, const char* modNa
         surf++;
     }
 
-    {
+    if (mdvModel->numFrames > 1 && !glRefConfig.gpuVertexAnimation) {
+        mdvModel->numVaoSurfaces = 0;
+        mdvModel->vaoSurfaces = NULL;
+    } else {
         srfVaoMdvMesh_t* vaoSurf;
 
         mdvModel->numVaoSurfaces = mdvModel->numSurfaces;
@@ -1325,7 +1328,10 @@ static qboolean R_LoadMD3(model_t* mod, int lod, void* buffer, const char* modNa
         surf++;
     }
 
-    {
+    if (mdvModel->numFrames > 1 && !glRefConfig.gpuVertexAnimation) {
+        mdvModel->numVaoSurfaces = 0;
+        mdvModel->vaoSurfaces = NULL;
+    } else {
         srfVaoMdvMesh_t* vaoSurf;
 
         mdvModel->numVaoSurfaces = mdvModel->numSurfaces;

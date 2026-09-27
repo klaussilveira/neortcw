@@ -546,6 +546,16 @@ void SV_DropClient(client_t* drop, const char* reason)
         SV_CloseDownload(drop);
     }
 
+    // Reset the reliable sequence to the currently acknowledged command
+    // This prevents SV_AddServerCommand() from making another recursive call to SV_DropClient()
+    // if the client lacks sufficient space for another reliable command
+    // it also guarantees that the client receives both the print and disconnect commands
+    drop->reliableSequence = drop->reliableAcknowledge;
+    // Setting the gamestate message number to -1 ensures that SV_AddServerCommand()
+    // will not call SV_DropClient() again, even though it is unlikely the client
+    // will receive many server commands during the drop
+    drop->gamestateMessageNum = -1;
+
     if ((!SV_GameIsSinglePlayer()) || (!isBot)) {
         // tell everyone why they got dropped
 
@@ -1338,7 +1348,10 @@ static void SV_VerifyPaks_f(client_t* cl)
             cl->nextSnapshotTime = -1;
             cl->state = CS_ACTIVE;
             SV_SendClientSnapshot(cl);
-            SV_DropClient(cl, "Unpure client detected. Invalid .PK3 files referenced!");
+            SV_DropClient(cl, "Unpure Client. "
+                              "You may need to enable in-game downloads "
+                              "to connect to this server (set "
+                              "cl_allowDownload 1)");
         }
     }
 }
@@ -1761,7 +1774,7 @@ void SV_ExecuteClientMessage(client_t* cl, msg_t* msg)
     // NOTE: when the client message is fux0red the acknowledgement numbers
     // can be out of range, this could cause the server to send thousands of server
     // commands which the server thinks are not yet acknowledged in SV_UpdateServerCommandsToClient
-    if (cl->reliableAcknowledge < cl->reliableSequence - MAX_RELIABLE_COMMANDS) {
+    if ((cl->reliableSequence - cl->reliableAcknowledge >= MAX_RELIABLE_COMMANDS) || (cl->reliableSequence - cl->reliableAcknowledge < 0)) {
         // usually only hackers create messages like this
         // it is more annoying for them to let them hanging
 #ifndef NDEBUG

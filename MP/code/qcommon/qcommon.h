@@ -682,7 +682,7 @@ void FS_FreeFileList(char** list);
 
 qboolean FS_FileExists(const char* file);
 
-qboolean FS_CreatePath(char* OSPath);
+qboolean FS_CreatePath(const char* OSPath);
 
 int FS_FindVM(void** startSearch, char* found, int foundlen, const char* name, qboolean unpure, int enableQvm);
 
@@ -805,7 +805,7 @@ void FS_Rename(const char* from, const char* to);
 void FS_Remove(const char* osPath);
 void FS_HomeRemove(const char* homePath);
 
-void FS_FilenameCompletion(const char* dir, const char* ext, qboolean stripExt, void (*callback)(const char* s), qboolean allowNonPureFilesOnDisk);
+void FS_FilenameCompletion(const char* dir, const char* ext, char* filter, qboolean stripExt, void (*callback)(const char* s), qboolean allowNonPureFilesOnDisk);
 
 const char* FS_GetCurrentGameDir(void);
 qboolean FS_Which(const char* filename, void* searchPath);
@@ -841,10 +841,7 @@ typedef struct {
 void Field_Clear(field_t* edit);
 void Field_AutoComplete(field_t* edit);
 void Field_CompleteKeyname(void);
-void Field_CompleteFilename(const char* dir,
-const char* ext,
-qboolean stripExt,
-qboolean allowNonPureFilesOnDisk);
+void Field_CompleteFilename(const char* dir, const char* ext, char* filter, qboolean stripExt, qboolean allowNonPureFilesOnDisk);
 void Field_CompleteCommand(char* cmd,
 qboolean doCommands,
 qboolean doCvars);
@@ -1281,6 +1278,7 @@ typedef enum {
 } dialogType_t;
 
 dialogResult_t Sys_Dialog(dialogType_t type, const char* message, const char* title);
+qboolean Sys_OpenFolderInFileManager(const char* path, qboolean create);
 
 void Sys_RemovePIDFile(const char* gamedir);
 void Sys_InitPIDFile(const char* gamedir);
