@@ -380,7 +380,7 @@ void Sys_AnsiColorPrint(const char* msg)
     static char buffer[MAXPRINTMSG];
     int length = 0;
     static int q3ToAnsi[8] = {
-        30, // COLOR_BLACK
+        7,  // COLOR_BLACK
         31, // COLOR_RED
         32, // COLOR_GREEN
         33, // COLOR_YELLOW
@@ -404,8 +404,8 @@ void Sys_AnsiColorPrint(const char* msg)
                 fputs("\033[0m\n", stderr);
                 msg++;
             } else {
-                // Print the color code
-                Com_sprintf(buffer, sizeof(buffer), "\033[%dm",
+                // Print the color code (reset first to clear potential inverse (black))
+                Com_sprintf(buffer, sizeof(buffer), "\033[0m\033[%dm",
                 q3ToAnsi[ColorIndex(*(msg + 1))]);
                 fputs(buffer, stderr);
                 msg += 2;
@@ -972,6 +972,7 @@ int main(int argc, char** argv)
 #endif
 
     Sys_PlatformInit();
+    Sys_SetMaxFileLimit();
 
     // Set the initial time base
     Sys_Milliseconds();

@@ -37,9 +37,9 @@ If you have questions concerning this license or the applicable additional terms
 #include "../cgame/cg_public.h"
 #include "../game/bg_public.h"
 
-#ifdef USE_CURL
-#include "cl_curl.h"
-#endif /* USE_CURL */
+#ifdef USE_HTTP
+#include "cl_http.h"
+#endif /* USE_HTTP */
 
 #ifdef USE_VOIP
 #ifdef USE_LOCAL_HEADERS
@@ -222,14 +222,11 @@ typedef struct {
     fileHandle_t download;
     char downloadTempName[MAX_OSPATH];
     char downloadName[MAX_OSPATH];
-#ifdef USE_CURL
-    qboolean cURLEnabled;
-    qboolean cURLUsed;
-    qboolean cURLDisconnected;
+#ifdef USE_HTTP
+    qboolean httpUsed;
+    qboolean disconnectedForHttpDownload;
     char downloadURL[MAX_OSPATH];
-    CURL* downloadCURL;
-    CURLM* downloadCURLM;
-#endif /* USE_CURL */
+#endif /* USE_HTTP */
     int sv_allowDownload;
     char sv_dlURL[MAX_CVAR_VALUE_STRING];
     int downloadNumber;
@@ -616,6 +613,9 @@ qboolean CL_UpdateVisiblePings_f(int source);
 //
 // console
 //
+extern int g_smallchar_width;
+extern int g_smallchar_height;
+
 void Con_DrawCharacter(int cx, int line, int num);
 
 void Con_CheckResize(void);

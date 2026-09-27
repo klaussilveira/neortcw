@@ -5,13 +5,7 @@ option(BUILD_GAME_SO "Build MP game shared libraries" ON)
 option(BUILD_GAME_QVM "Build MP game QVM bytecode" OFF)
 option(BUILD_RENDERER_REND2 "Build rend2 (OpenGL 2) renderer" ON)
 
-option(USE_CURL "Use libcurl for HTTP downloads" ON)
-option(USE_CURL_DLOPEN "dlopen libcurl at runtime" ON)
-
-# --- CURL (MP-specific, SP defaults to off) ---
-if(USE_CURL AND NOT USE_CURL_DLOPEN)
-    find_package(CURL)
-endif()
+option(USE_HTTP "Enable HTTP downloads" ON)
 
 # MP version string
 set(MP_VERSION "1.51d-MP")
@@ -100,7 +94,6 @@ set(CLIENT_SRC
     code/client/snd_codec_opus.c
     code/client/qal.c
     code/client/snd_openal.c
-    code/client/cl_curl.c
     code/server/sv_bot.c
     code/server/sv_ccmds.c
     code/server/sv_client.c
@@ -157,9 +150,9 @@ set(SPLINES_SRC
 
 # Platform-specific sources
 if(WIN32)
-    list(APPEND CLIENT_SRC code/sys/sys_win32.c code/sys/con_passive.c)
+    list(APPEND CLIENT_SRC code/sys/sys_win32.c code/sys/con_passive.c code/client/cl_http_windows.c)
 else()
-    list(APPEND CLIENT_SRC code/sys/sys_unix.c code/sys/con_tty.c)
+    list(APPEND CLIENT_SRC code/sys/sys_unix.c code/sys/con_tty.c code/client/cl_http_curl.c)
 endif()
 if(APPLE)
     list(APPEND CLIENT_SRC code/sys/sys_osx.m)
@@ -710,11 +703,8 @@ if(BUILD_CLIENT)
     )
     target_compile_options(iowolfmp PRIVATE ${MP_BASE_CFLAGS})
     add_wolf_definitions(iowolfmp)
-    if(USE_CURL)
-        target_compile_definitions(iowolfmp PRIVATE USE_CURL)
-        if(USE_CURL_DLOPEN)
-            target_compile_definitions(iowolfmp PRIVATE USE_CURL_DLOPEN)
-        endif()
+    if(USE_HTTP)
+        target_compile_definitions(iowolfmp PRIVATE USE_HTTP)
     endif()
     link_wolf_libs(iowolfmp)
     link_client_codec_libs(iowolfmp)
@@ -728,11 +718,6 @@ if(BUILD_CLIENT)
     if(USE_OPENAL AND NOT USE_OPENAL_DLOPEN AND OPENAL_FOUND)
         target_link_libraries(iowolfmp PRIVATE ${OPENAL_LIBRARY})
         target_include_directories(iowolfmp PRIVATE ${OPENAL_INCLUDE_DIR})
-    endif()
-
-    if(USE_CURL AND NOT USE_CURL_DLOPEN AND CURL_FOUND)
-        target_link_libraries(iowolfmp PRIVATE ${CURL_LIBRARIES})
-        target_include_directories(iowolfmp PRIVATE ${CURL_INCLUDE_DIRS})
     endif()
 
     if(PLATFORM STREQUAL "linux")
@@ -750,7 +735,7 @@ if(BUILD_CLIENT)
     elseif(WIN32)
         target_link_libraries(
             iowolfmp
-            PRIVATE ws2_32 winmm psapi gdi32 ole32
+            PRIVATE ws2_32 winmm psapi gdi32 ole32 wininet
         )
     endif()
 endif()

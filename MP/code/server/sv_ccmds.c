@@ -829,11 +829,6 @@ static void SV_RehashBans_f(void)
     char *textbuf, *curpos, *maskpos, *newlinepos, *endpos;
     char filepath[MAX_QPATH];
 
-    // make sure server is running
-    if (!com_sv_running->integer) {
-        return;
-    }
-
     serverBansCount = 0;
 
     if (!sv_banFile->string || !*sv_banFile->string)
@@ -1541,7 +1536,7 @@ SV_CompleteMapName
 static void SV_CompleteMapName(char* args, int argNum)
 {
     if (argNum == 2) {
-        Field_CompleteFilename("maps", "bsp", qtrue, qfalse);
+        Field_CompleteFilename("maps", "bsp", NULL, qtrue, qfalse);
     }
 }
 

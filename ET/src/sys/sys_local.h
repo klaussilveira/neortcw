@@ -203,6 +203,8 @@ void Sys_AnsiColorPrint(const char* msg);
 int Sys_PID(void);
 qboolean Sys_PIDIsRunning(int pid);
 
+qboolean Sys_SetMaxFileLimit(void);
+
 // ET-specific declarations
 char* Sys_GetDLLName(const char* name);
 void Sys_Chmod(char* file, int mode);

@@ -731,6 +731,8 @@ Display an error message
 */
 void Sys_ErrorDialog(const char* error)
 {
+    Sys_Print(va("%s\n", error));
+
     if (Sys_Dialog(DT_YES_NO, va("%s. Copy console log to clipboard?", error),
         "Error")
     == DR_YES) {
@@ -936,6 +938,16 @@ qboolean Sys_DllExtension(const char* name)
 
 /*
 ==============
+Sys_OpenFolderInPlatformFileManager
+==============
+*/
+qboolean Sys_OpenFolderInPlatformFileManager(const char* path)
+{
+    return ShellExecute(NULL, "explore", path, NULL, NULL, SW_SHOWDEFAULT) > (HINSTANCE)32;
+}
+
+/*
+==============
 Sys_GetDLLName
 ==============
 */
@@ -952,4 +964,14 @@ Sys_GetHighQualityCPU
 int Sys_GetHighQualityCPU()
 {
     return 1;
+}
+
+/*
+=================
+Sys_SetMaxFileLimit
+=================
+*/
+qboolean Sys_SetMaxFileLimit(void)
+{
+    return qtrue;
 }

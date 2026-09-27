@@ -92,7 +92,6 @@ set(SP_CLIENT_SRC
     code/client/snd_codec_opus.c
     code/client/qal.c
     code/client/snd_openal.c
-    code/client/cl_curl.c
     code/server/sv_bot.c
     code/server/sv_ccmds.c
     code/server/sv_client.c
@@ -149,9 +148,9 @@ set(SP_SPLINES_SRC
 
 # Platform-specific sources
 if(WIN32)
-    list(APPEND SP_CLIENT_SRC code/sys/sys_win32.c code/sys/con_passive.c)
+    list(APPEND SP_CLIENT_SRC code/sys/sys_win32.c code/sys/con_passive.c code/client/cl_http_windows.c)
 else()
-    list(APPEND SP_CLIENT_SRC code/sys/sys_unix.c code/sys/con_tty.c)
+    list(APPEND SP_CLIENT_SRC code/sys/sys_unix.c code/sys/con_tty.c code/client/cl_http_curl.c)
 endif()
 if(APPLE)
     list(APPEND SP_CLIENT_SRC code/sys/sys_osx.m)

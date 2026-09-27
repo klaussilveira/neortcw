@@ -30,11 +30,14 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "client.h"
 
-int g_console_field_width = 78;
+#define DEFAULT_CONSOLE_WIDTH 78
+int g_console_field_width = DEFAULT_CONSOLE_WIDTH;
+int g_smallchar_width = SMALLCHAR_WIDTH;
+int g_smallchar_height = SMALLCHAR_HEIGHT;
 
 #define COLNSOLE_COLOR COLOR_WHITE // COLOR_BLACK
 
-#define NUM_CON_TIMES 4
+#define NUM_CON_TIMES 17
 
 // #define		CON_TEXTSIZE	32768
 #define CON_TEXTSIZE 65536 // (SA) DM want's more console...
@@ -68,11 +71,11 @@ cvar_t* con_debug;
 cvar_t* con_conspeed;
 cvar_t* con_autoclear;
 cvar_t* con_notifytime;
+cvar_t* con_notifylines;
+cvar_t* con_scale;
 
 // DHM - Nerve :: Must hold CTRL + SHIFT + ~ to get console
 cvar_t* con_restricted;
-
-#define DEFAULT_CONSOLE_WIDTH 78
 
 /*
 ================
@@ -322,7 +325,12 @@ void Con_CheckResize(void)
     int i, j, width, oldwidth, oldtotallines, numlines, numchars;
     short tbuf[CON_TEXTSIZE];
 
-    width = (SCREEN_WIDTH / SMALLCHAR_WIDTH) - 2;
+    if (con_scale != NULL) {
+        g_smallchar_width = (int)((float)SMALLCHAR_WIDTH * con_scale->value);
+        g_smallchar_height = (int)((float)SMALLCHAR_HEIGHT * con_scale->value);
+    }
+
+    width = (cls.glconfig.vidWidth / g_smallchar_width) - 2;
 
     if (width == con.linewidth) {
         return;
@@ -378,7 +386,7 @@ Cmd_CompleteTxtName
 void Cmd_CompleteTxtName(char* args, int argNum)
 {
     if (argNum == 2) {
-        Field_CompleteFilename("", "txt", qfalse, qtrue);
+        Field_CompleteFilename("", "txt", NULL, qfalse, qtrue);
     }
 }
 
@@ -391,9 +399,13 @@ void Con_Init(void)
 {
     int i;
 
-    con_notifytime = Cvar_Get("con_notifytime", "7", 0); // JPW NERVE increased per id req for obits
-    con_conspeed = Cvar_Get("scr_conspeed", "3", 0);
+    con_notifytime = Cvar_Get("con_notifytime", "7", CVAR_ARCHIVE); // JPW NERVE increased per id req for obits
+    con_notifylines = Cvar_Get("con_notifylines", "3", CVAR_ARCHIVE);
+    Cvar_CheckRange(con_notifylines, 1, NUM_CON_TIMES - 1, qtrue);
+    con_conspeed = Cvar_Get("scr_conspeed", "3", CVAR_ARCHIVE);
     con_autoclear = Cvar_Get("con_autoclear", "1", CVAR_ARCHIVE);
+    con_scale = Cvar_Get("con_scale", "1", CVAR_ARCHIVE);
+    Cvar_CheckRange(con_scale, 1.0f, 4.0f, qfalse);
     con_debug = Cvar_Get("con_debug", "0", CVAR_ARCHIVE);        //----(SA)	added
     con_restricted = Cvar_Get("con_restricted", "0", CVAR_INIT); // DHM - Nerve
 
@@ -578,14 +590,14 @@ void Con_DrawInput(void)
         return;
     }
 
-    y = con.vislines - (SMALLCHAR_HEIGHT * 2);
+    y = con.vislines - (g_smallchar_height * 2);
 
     re.SetColor(con.color);
 
-    SCR_DrawSmallChar(con.xadjust + 1 * SMALLCHAR_WIDTH, y, ']');
+    SCR_DrawSmallChar(con.xadjust + 1 * g_smallchar_width, y, ']');
 
-    Field_Draw(&g_consoleField, con.xadjust + 2 * SMALLCHAR_WIDTH, y,
-    SCREEN_WIDTH - 3 * SMALLCHAR_WIDTH, qtrue, qtrue);
+    Field_Draw(&g_consoleField, con.xadjust + 2 * g_smallchar_width, y,
+    SCREEN_WIDTH - 3 * g_smallchar_width, qtrue, qtrue);
 }
 
 /*
@@ -613,7 +625,9 @@ void Con_DrawNotify(void)
     re.SetColor(g_color_table[currentColor]);
 
     v = 0;
-    for (i = con.current - NUM_CON_TIMES + 1; i <= con.current; i++) {
+    for (i = con.current - con_notifylines->integer; i <= con.current; i++) {
+        int linelength = 0;
+
         if (i < 0) {
             continue;
         }
@@ -639,11 +653,18 @@ void Con_DrawNotify(void)
                 currentColor = ColorIndexForNumber(text[x] >> 8);
                 re.SetColor(g_color_table[currentColor]);
             }
-            SCR_DrawSmallChar(cl_conXOffset->integer + con.xadjust + (x + 1) * SMALLCHAR_WIDTH, v, text[x] & 0xff);
+            SCR_DrawSmallChar(cl_conXOffset->integer + con.xadjust + (x + 1) * g_smallchar_width, v, text[x] & 0xff);
+            linelength++;
         }
 
-        v += SMALLCHAR_HEIGHT;
+        if (linelength > 0) {
+            v += g_smallchar_height;
+        }
     }
+
+    // v is in native coordinates, convert to 640x480 for SCR_DrawBigString
+    v *= 480.0f / cls.glconfig.vidHeight;
+    v += 8;
 
     re.SetColor(NULL);
 
@@ -731,22 +752,22 @@ void Con_DrawSolidConsole(float frac)
     i = strlen(Q3_VERSION);
 
     for (x = 0; x < i; x++) {
-        SCR_DrawSmallChar(cls.glconfig.vidWidth - (i - x + 1) * SMALLCHAR_WIDTH, lines - SMALLCHAR_HEIGHT, Q3_VERSION[x]);
+        SCR_DrawSmallChar(cls.glconfig.vidWidth - (i - x + 1) * g_smallchar_width, lines - g_smallchar_height, Q3_VERSION[x]);
     }
 
     // draw the text
     con.vislines = lines;
-    rows = (lines - SMALLCHAR_HEIGHT) / SMALLCHAR_HEIGHT; // rows of text to draw
+    rows = (lines - g_smallchar_height) / g_smallchar_height; // rows of text to draw
 
-    y = lines - (SMALLCHAR_HEIGHT * 3);
+    y = lines - (g_smallchar_height * 3);
 
     // draw from the bottom up
     if (con.display != con.current) {
         // draw arrows to show the buffer is backscrolled
         re.SetColor(g_color_table[ColorIndex(COLOR_WHITE)]);
         for (x = 0; x < con.linewidth; x += 4)
-            SCR_DrawSmallChar(con.xadjust + (x + 1) * SMALLCHAR_WIDTH, y, '^');
-        y -= SMALLCHAR_HEIGHT;
+            SCR_DrawSmallChar(con.xadjust + (x + 1) * g_smallchar_width, y, '^');
+        y -= g_smallchar_height;
         rows--;
     }
 
@@ -759,7 +780,7 @@ void Con_DrawSolidConsole(float frac)
     currentColor = 7;
     re.SetColor(g_color_table[currentColor]);
 
-    for (i = 0; i < rows; i++, y -= SMALLCHAR_HEIGHT, row--) {
+    for (i = 0; i < rows; i++, y -= g_smallchar_height, row--) {
         if (row < 0) {
             break;
         }
@@ -779,7 +800,7 @@ void Con_DrawSolidConsole(float frac)
                 currentColor = ColorIndexForNumber(text[x] >> 8);
                 re.SetColor(g_color_table[currentColor]);
             }
-            SCR_DrawSmallChar(con.xadjust + (x + 1) * SMALLCHAR_WIDTH, y, text[x] & 0xff);
+            SCR_DrawSmallChar(con.xadjust + (x + 1) * g_smallchar_width, y, text[x] & 0xff);
         }
     }
 

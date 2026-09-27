@@ -565,10 +565,14 @@ FS_CreatePath
 Creates any directories needed to store the given filename
 ============
 */
-qboolean FS_CreatePath(char* OSPath)
+qboolean FS_CreatePath(const char* OSPath)
 {
     char* ofs;
     char path[MAX_OSPATH];
+
+    if (!OSPath || !*OSPath) {
+        return qfalse;
+    }
 
     // make absolutely sure that it can't back up the path
     // FIXME: is c: allowed???
@@ -2443,7 +2447,7 @@ Returns a uniqued list of files that match the given criteria
 from all search paths
 ===============
 */
-char** FS_ListFilteredFiles(const char* path, const char* extension, char* filter, int* numfiles, qboolean allowNonPureFilesOnDisk)
+char** FS_ListFilteredFiles(const char* path, const char* extension, char* filter, int* numfiles, qboolean stripPath, qboolean allowNonPureFilesOnDisk)
 {
     int nfiles;
     char** listCopy;
@@ -2452,7 +2456,7 @@ char** FS_ListFilteredFiles(const char* path, const char* extension, char* filte
     int i;
     int pathLength;
     int extensionLength;
-    int length, pathDepth, temp;
+    int length, pathDepth, pathSkip;
     pack_t* pak;
     fileInPack_t* buildBuffer;
     char zpath[MAX_ZPATH];
@@ -2499,14 +2503,24 @@ char** FS_ListFilteredFiles(const char* path, const char* extension, char* filte
 
                 // check for directory match
                 name = buildBuffer[i].name;
-                //
+
+                if (stripPath) {
+                    pathSkip = pathLength;
+                    if (pathLength) {
+                        pathSkip++; // include the '/'
+                    }
+                } else {
+                    pathSkip = 0;
+                }
+
                 if (filter) {
                     // case insensitive
                     if (!Com_FilterPath(filter, name, qfalse)) {
                         continue;
                     }
+
                     // unique the match
-                    nfiles = FS_AddFileToList(name, list, nfiles);
+                    nfiles = FS_AddFileToList(name + pathSkip, list, nfiles);
                 } else {
 
                     zpathLen = FS_ReturnPath(name, zpath, &depth);
@@ -2524,13 +2538,9 @@ char** FS_ListFilteredFiles(const char* path, const char* extension, char* filte
                     if (Q_stricmp(name + length - extensionLength, extension)) {
                         continue;
                     }
-                    // unique the match
 
-                    temp = pathLength;
-                    if (pathLength) {
-                        temp++; // include the '/'
-                    }
-                    nfiles = FS_AddFileToList(name + temp, list, nfiles);
+                    // unique the match
+                    nfiles = FS_AddFileToList(name + pathSkip, list, nfiles);
                 }
             }
         } else if (search->dir) { // scan for files in the filesystem
@@ -2579,7 +2589,7 @@ FS_ListFiles
 */
 char** FS_ListFiles(const char* path, const char* extension, int* numfiles)
 {
-    return FS_ListFilteredFiles(path, extension, NULL, numfiles, qfalse);
+    return FS_ListFilteredFiles(path, extension, NULL, numfiles, qtrue, qfalse);
 }
 
 /*
@@ -3006,7 +3016,7 @@ void FS_NewDir_f(void)
 
     Com_Printf("---------------\n");
 
-    dirnames = FS_ListFilteredFiles("", "", filter, &ndirs, qfalse);
+    dirnames = FS_ListFilteredFiles("", "", filter, &ndirs, qfalse, qfalse);
 
     FS_SortFileList(dirnames, ndirs);
 
@@ -3768,6 +3778,8 @@ static void FS_CheckPak0(void)
     const char* pakBasename;
     qboolean founddemo = qfalse;
     unsigned int foundPak = 0;
+    qboolean installHome = qfalse;
+    char* installPath;
 
     for (path = fs_searchpaths; path; path = path->next) {
         if (!path->pack)
@@ -3853,21 +3865,55 @@ static void FS_CheckPak0(void)
         }
     }
 
+#if defined(__linux__)
+    {
+        const char* p;
+
+        // Users can't write to the default Flatpak fs_basepath
+        if ((p = getenv("FLATPAK_ID")) != NULL && *p != '\0') {
+            installHome = qtrue;
+        }
+    }
+#elif defined(__APPLE__)
+    // If we're running from an .app, it makes more sense to recommend
+    // using fs_homepath as fs_basepath is likely not suitable
+    if (strstr(fs_apppath->string, "Contents/MacOS")) {
+        installHome = qtrue;
+    }
+#endif
+
+    if (installHome) {
+        installPath = fs_homepath->string;
+    } else {
+        installPath = fs_basepath->string;
+    }
+
     if (!com_standalone->integer && (foundPak & 0x01) != 0x01) {
         char errorText[MAX_STRING_CHARS] = "";
+        char gamePath[MAX_OSPATH];
 
-        if ((foundPak & 0x01) != 0x01) {
-            Q_strcat(errorText, sizeof(errorText),
-            "\n\n\"pak0.pk3\" is missing. Please copy it\n"
-            "from your legitimate RTCW CDROM.\n\n");
-        }
+        Com_sprintf(gamePath, sizeof(gamePath), "%s%c%s%c", installPath, PATH_SEP, BASEGAME, PATH_SEP);
 
         Q_strcat(errorText, sizeof(errorText),
-        va("Also check that your iortcw executable is in\n"
-           "the correct place and that every file\n"
-           "in the \"%s\" directory is present and readable.\n\n",
-        BASEGAME));
+        va("\n\n\"pak0.pk3\" is missing. Please copy it\n"
+           "from your legitimate RTCW CDROM to:\n\n"
+           "%s\n\n",
+        gamePath));
 
+        if (installHome) {
+            Q_strcat(errorText, sizeof(errorText),
+            va("Also check that every file\n"
+               "in the \"%s\" directory is present and readable.\n\n",
+            BASEGAME));
+        } else {
+            Q_strcat(errorText, sizeof(errorText),
+            va("Also check that your iortcw executable is in\n"
+               "the correct place and that every file\n"
+               "in the \"%s\" directory is present and readable.\n\n",
+            BASEGAME));
+        }
+
+        Sys_OpenFolderInFileManager(gamePath, qtrue);
         Com_Error(ERR_FATAL, "%s", errorText);
     }
 
@@ -4384,14 +4430,15 @@ void FS_Flush(fileHandle_t f)
     fflush(fsh[f].handleFiles.file.o);
 }
 
-void FS_FilenameCompletion(const char* dir, const char* ext, qboolean stripExt, void (*callback)(const char* s), qboolean allowNonPureFilesOnDisk)
+void FS_FilenameCompletion(const char* dir, const char* ext, char* filter, qboolean stripExt, void (*callback)(const char* s), qboolean allowNonPureFilesOnDisk)
 {
     char** filenames;
     int nfiles;
     int i;
     char filename[MAX_STRING_CHARS];
 
-    filenames = FS_ListFilteredFiles(dir, ext, NULL, &nfiles, allowNonPureFilesOnDisk);
+    filenames = FS_ListFilteredFiles(dir, ext, filter,
+    &nfiles, qtrue, allowNonPureFilesOnDisk);
 
     FS_SortFileList(filenames, nfiles);
 

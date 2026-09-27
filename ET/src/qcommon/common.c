@@ -621,7 +621,7 @@ int Com_Filter(char* filter, char* name, int casesensitive)
         if (*filter == '*') {
             filter++;
             for (i = 0; *filter; i++) {
-                if (*filter == '*' || *filter == '?') {
+                if (*filter == '*' || *filter == '?' || *filter == '[') {
                     break;
                 }
                 buf[i] = *filter;
@@ -1529,6 +1529,7 @@ void Hunk_Log(void)
     FS_Write(buf, strlen(buf), logfile);
     Com_sprintf(buf, sizeof(buf), "%d hunk blocks\r\n", numBlocks);
     FS_Write(buf, strlen(buf), logfile);
+    FS_Flush(logfile);
 }
 
 /*
@@ -1579,6 +1580,7 @@ void Hunk_SmallLog(void)
     FS_Write(buf, strlen(buf), logfile);
     Com_sprintf(buf, sizeof(buf), "%d hunk blocks\r\n", numBlocks);
     FS_Write(buf, strlen(buf), logfile);
+    FS_Flush(logfile);
 }
 
 /*

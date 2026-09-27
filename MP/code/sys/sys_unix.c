@@ -39,6 +39,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <fenv.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <sys/resource.h>
 
 qboolean stdinIsATTY;
 
@@ -584,7 +585,6 @@ void Sys_ErrorDialog(const char* error)
     const char* homepath = Cvar_VariableString("fs_homepath");
     const char* gamedir = Cvar_VariableString("fs_game");
     const char* fileName = "crashlog.txt";
-    char* dirpath = FS_BuildOSPath(homepath, gamedir, "");
     char* ospath = FS_BuildOSPath(homepath, gamedir, fileName);
 
     Sys_Print(va("%s\n", error));
@@ -594,14 +594,8 @@ void Sys_ErrorDialog(const char* error)
 #endif
 
     // Make sure the write path for the crashlog exists...
-
-    if (!Sys_Mkdir(homepath)) {
-        Com_Printf("ERROR: couldn't create path '%s' for crash log.\n", homepath);
-        return;
-    }
-
-    if (!Sys_Mkdir(dirpath)) {
-        Com_Printf("ERROR: couldn't create path '%s' for crash log.\n", dirpath);
+    if (FS_CreatePath(ospath)) {
+        Com_Printf("ERROR: couldn't create path '%s' for crash log.\n", ospath);
         return;
     }
 
@@ -625,7 +619,6 @@ void Sys_ErrorDialog(const char* error)
     close(f);
 }
 
-#ifndef __APPLE__
 static char execBuffer[1024];
 static char* execBufferPointer;
 static char* execArgv[16];
@@ -692,6 +685,7 @@ static int Sys_Exec(void)
     }
 }
 
+#ifndef __APPLE__
 /*
 ==============
 Sys_ZenityCommand
@@ -1011,6 +1005,26 @@ qboolean Sys_DllExtension(const char* name)
 
 /*
 ==============
+Sys_OpenFolderInPlatformFileManager
+==============
+*/
+qboolean Sys_OpenFolderInPlatformFileManager(const char* path)
+{
+    Sys_ClearExecBuffer();
+
+#ifdef __APPLE__
+    Sys_AppendToExecBuffer("open");
+#else
+    Sys_AppendToExecBuffer("xdg-open");
+#endif
+
+    Sys_AppendToExecBuffer(path);
+
+    return Sys_Exec() == 0;
+}
+
+/*
+==============
 Sys_GetDLLName
 ==============
 */
@@ -1167,4 +1181,40 @@ void Sys_OpenURL(const char* url, qboolean doexit)
     } else {
         Sys_StartProcess(cmdline, qfalse);
     }
+}
+
+/*
+=================
+Sys_SetMaxFileLimit
+=================
+*/
+qboolean Sys_SetMaxFileLimit(void)
+{
+#ifdef RLIMIT_NOFILE
+    struct rlimit limit;
+
+    // Get the current open file limit
+    if (getrlimit(RLIMIT_NOFILE, &limit) == 0) {
+        // Set the file limit to the maximum
+        limit.rlim_cur = limit.rlim_max;
+        if (setrlimit(RLIMIT_NOFILE, &limit) == 0)
+            return qtrue;
+        else
+            Com_DPrintf(S_COLOR_YELLOW "WARNING: setrlimit (rlim_max) failed\n");
+
+#ifdef OPEN_MAX
+        // On older macOS versions an error can happen trying to set a file limit above
+        // OPEN_MAX. If we see an error, then try again with OPEN_MAX as the limit.
+        limit.rlim_cur = OPEN_MAX;
+        if (setrlimit(RLIMIT_NOFILE, &limit) == 0)
+            return qtrue;
+        else
+            Com_DPrintf(S_COLOR_YELLOW "WARNING: setrlimit (OPEN_MAX) failed\n");
+#endif
+    } else
+        Com_DPrintf(S_COLOR_YELLOW "WARNING: getrlimit failed\n");
+
+#endif // RLIMIT_NOFILE
+
+    return qfalse;
 }

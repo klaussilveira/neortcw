@@ -507,8 +507,14 @@ Creates any directories needed to store the given filename
 int FS_CreatePath(const char* OSPath_)
 {
     // use va() to have a clean const char* prototype
-    char* OSPath = va("%s", OSPath_);
+    char* OSPath;
     char* ofs;
+
+    if (!OSPath_ || !*OSPath_) {
+        return qfalse;
+    }
+
+    OSPath = va("%s", OSPath_);
 
     // make absolutely sure that it can't back up the path
     // FIXME: is c: allowed???
