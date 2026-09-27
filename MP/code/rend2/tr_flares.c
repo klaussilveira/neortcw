@@ -343,7 +343,8 @@ void RB_TestFlare(flare_t* f)
     float depth;
     qboolean visible;
     float fade;
-    float screenZ;
+    float flareDepth;
+
     FBO_t* oldFbo;
 
     backEnd.pc.c_flareTests++;
@@ -366,12 +367,26 @@ void RB_TestFlare(flare_t* f)
         FBO_Bind(oldFbo);
     }
 
-    screenZ = backEnd.viewParms.projectionMatrix[14] / ((2 * depth - 1) * backEnd.viewParms.projectionMatrix[11] - backEnd.viewParms.projectionMatrix[10]);
-
     visible = f->cgvisible;
 
-    if (-f->eyeZ - -screenZ > 24)
-        visible = qfalse;
+    // Project flare origin with the CURRENT view (handles oblique near plane)
+    vec4_t eyePos, clipPos;
+    R_TransformModelToClip(f->origin,
+    backEnd.or.modelMatrix,
+    backEnd.viewParms.projectionMatrix,
+    eyePos, clipPos);
+    if (clipPos[3] <= 0.0f) {
+        visible = qfalse; // behind eye
+    } else {
+        // Treat near-equal depths as visible, tiny margin to avoid false occlusion from rounding
+        const float depthBias = 1e-5f; // ~256 / 2^24
+
+        float clipDepth = clipPos[2] / clipPos[3]; // [-1,1]
+        flareDepth = clipDepth * 0.5f + 0.5f;      // 0..1
+        if (flareDepth - depthBias > depth) {
+            visible = qfalse;
+        }
+    }
 
     if (visible) {
         if (!f->visible) {
@@ -547,6 +562,14 @@ void RB_RenderFlares(void)
 
     if (!r_flares->integer) {
         return;
+    }
+
+    if (r_flares->modified) {
+        if (qglesMajorVersion >= 1 && !glRefConfig.readDepth) {
+            ri.Printf(PRINT_WARNING, "OpenGL ES needs GL_NV_read_depth to read depth to determine if flares are visible\n");
+            ri.Cvar_Set("r_flares", "0");
+        }
+        r_flares->modified = qfalse;
     }
 
     if (r_flareCoeff->modified) {

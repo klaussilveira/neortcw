@@ -88,16 +88,16 @@ vec3 DeformPosition(const vec3 pos, const vec3 normal, const vec2 st)
 	float spread =    u_DeformParams[4];
 
 	// a negative frequency is for Z deformation based on normal
-	float zDeformScale = 0;
-	if (frequency < 0)
+	float zDeformScale = 0.0;
+	if (frequency < 0.0)
 	{
-		zDeformScale = 1;
-		frequency *= -1;
+		zDeformScale = 1.0;
+		frequency *= -1.0;
 
-		if (frequency > 999)
+		if (frequency > 999.0)
 		{
-			frequency -= 999;
-			zDeformScale = -1;
+			frequency -= 999.0;
+			zDeformScale = -1.0;
 		}
 	}
 
@@ -138,13 +138,13 @@ vec3 DeformPosition(const vec3 pos, const vec3 normal, const vec2 st)
 		func = sin(value);
 	}
 
-	if (zDeformScale != 0)
+	if (zDeformScale != 0.0)
 	{
 		vec3 dir = u_FireRiseDir * (0.4 + 0.6 * u_FireRiseDir.z);
 		float nDot = dot(dir, normal);
 		float scale = base + func * amplitude;
 
-		if (nDot * scale > 0)
+		if (nDot * scale > 0.0)
 		{
 			return pos + dir * nDot * scale * zDeformScale;
 		}
@@ -249,10 +249,10 @@ vec4 CalcColor(vec3 position, vec3 normal)
 				}
 				color.a *= clamp(frac, 0.0, 1.0);
 			} else {
-				color.a = 0;
+				color.a = 0.0;
 			}
 		} else {
-			color.a = 0;
+			color.a = 0.0;
 		}
 	}
 	

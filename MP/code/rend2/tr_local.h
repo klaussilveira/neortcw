@@ -49,8 +49,10 @@ QGL_ARB_vertex_array_object_PROCS;
 QGL_EXT_direct_state_access_PROCS;
 #undef GLE
 
-#define GL_INDEX_TYPE GL_UNSIGNED_INT
-typedef unsigned int glIndex_t;
+#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
+typedef unsigned short glIndex_t;
+
+typedef unsigned int vaoCacheGlIndex_t;
 
 #define BUFFER_OFFSET(i) ((char*)NULL + (i))
 
@@ -756,6 +758,8 @@ typedef enum {
     UNIFORM_ALPHATEST,
 
     UNIFORM_BONEMATRIX,
+
+    UNIFORM_GREYSCALE,
 
     UNIFORM_FIRERISEDIR,
     UNIFORM_ZFADELOWEST,
@@ -1485,6 +1489,7 @@ typedef struct {
     qboolean intelGraphics;
 
     qboolean occlusionQuery;
+    GLenum occlusionQueryTarget;
 
     int glslMajorVersion;
     int glslMinorVersion;
@@ -1508,6 +1513,18 @@ typedef struct {
 
     qboolean vertexArrayObject;
     qboolean directStateAccess;
+
+    int maxVertexAttribs;
+    qboolean gpuVertexAnimation;
+
+    GLenum vaoCacheGlIndexType; // GL_UNSIGNED_INT or GL_UNSIGNED_SHORT
+    size_t vaoCacheGlIndexSize; // must be <= sizeof( vaoCacheGlIndex_t )
+
+    // OpenGL ES extensions
+    qboolean readDepth;
+    qboolean readStencil;
+    qboolean shadowSamplers;
+    qboolean standardDerivatives;
 } glRefConfig_t;
 
 typedef struct {
@@ -1557,6 +1574,7 @@ typedef struct {
     FBO_t* last2DFBO;
     qboolean colorMask[4];
     qboolean depthFill;
+    float greyscale;
 } backEndState_t;
 
 /*
@@ -1679,6 +1697,7 @@ typedef struct {
     shaderProgram_t ssaoShader;
     shaderProgram_t depthBlurShader[4];
     shaderProgram_t testcubeShader;
+    shaderProgram_t greyscaleShader;
 
     // -----------------------------------------
 
@@ -1982,6 +2001,8 @@ extern cvar_t* r_printShaders;
 extern cvar_t* r_saveFontData;
 
 extern cvar_t* r_marksOnTriangleMeshes;
+
+extern cvar_t* r_vaoCache;
 
 // Ridah
 extern cvar_t* r_bonesDebug;
@@ -2394,6 +2415,7 @@ void R_VaoList_f(void);
 void RB_UpdateTessVao(unsigned int attribBits);
 
 void VaoCache_Commit(void);
+void VaoCache_DrawElements(int numIndexes, int firstIndex);
 void VaoCache_Init(void);
 void VaoCache_BindVao(void);
 void VaoCache_CheckAdd(qboolean* endSurface, qboolean* recycleVertexBuffer, qboolean* recycleIndexBuffer, int numVerts, int numIndexes);
@@ -2543,7 +2565,7 @@ RENDERER BACK END COMMAND QUEUE
 =============================================================
 */
 
-#define MAX_RENDER_COMMANDS 0x40000
+#define MAX_RENDER_COMMANDS 0x80000
 
 typedef struct {
     byte cmds[MAX_RENDER_COMMANDS];
@@ -2710,6 +2732,8 @@ void RE_EndFrame(int* frontEndMsec, int* backEndMsec);
 void RE_SaveJPG(char* filename, int quality, int image_width, int image_height, unsigned char* image_buffer, int padding);
 size_t RE_SaveJPGToBuffer(byte* buffer, size_t bufSize, int quality, int image_width, int image_height, byte* image_buffer, int padding);
 void RE_TakeVideoFrame(int width, int height, byte* captureBuffer, byte* encodeBuffer, qboolean motionJpeg);
+
+void R_ConvertTextureFormat(const byte* in, int width, int height, GLenum format, GLenum type, byte* out);
 
 // font stuff
 void R_InitFreeType(void);

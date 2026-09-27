@@ -162,7 +162,6 @@ extern void(APIENTRYP qglPNTrianglesfATI)(GLenum pname, GLfloat param);
     GLE(void, TexParameterf, GLenum target, GLenum pname, GLfloat param)                                                                                                   \
     GLE(void, TexParameteri, GLenum target, GLenum pname, GLint param)                                                                                                     \
     GLE(void, TexSubImage2D, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid* pixels)    \
-    GLE(void, Translatef, GLfloat x, GLfloat y, GLfloat z)                                                                                                                 \
     GLE(void, Viewport, GLint x, GLint y, GLsizei width, GLsizei height)                                                                                                   \
                                                                                                                                                                            \
     GLE(void, Hint, GLenum target, GLenum mode) /*Added*/
@@ -182,6 +181,7 @@ extern void(APIENTRYP qglPNTrianglesfATI)(GLenum pname, GLfloat param);
     GLE(void, ShadeModel, GLenum mode)                                                              \
     GLE(void, TexCoordPointer, GLint size, GLenum type, GLsizei stride, const GLvoid* ptr)          \
     GLE(void, TexEnvf, GLenum target, GLenum pname, GLfloat param)                                  \
+    GLE(void, Translatef, GLfloat x, GLfloat y, GLfloat z)                                          \
     GLE(void, VertexPointer, GLint size, GLenum type, GLsizei stride, const GLvoid* ptr)            \
                                                                                                     \
     GLE(void, Fogf, GLenum pname, GLfloat param)                                          /*Added*/ \

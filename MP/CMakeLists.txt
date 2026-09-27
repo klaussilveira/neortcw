@@ -305,6 +305,8 @@ set(GLSL_SHADERS
     fogpass_vp
     generic_fp
     generic_vp
+    greyscale_fp
+    greyscale_vp
     lightall_fp
     lightall_vp
     pshadow_fp
