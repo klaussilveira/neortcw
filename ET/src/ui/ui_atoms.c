@@ -284,9 +284,14 @@ void UI_AdjustFrom640(float* x, float* y, float* w, float* h)
 	*h *= uiInfo.uiDC.scale;
 #endif
 
-    *x *= uiInfo.uiDC.xscale;
+    if (*x <= 0 && *x + *w >= SCREEN_WIDTH) {
+        *x *= uiInfo.uiDC.glconfig.vidWidth / 640.0f;
+        *w *= uiInfo.uiDC.glconfig.vidWidth / 640.0f;
+    } else {
+        *x = *x * uiInfo.uiDC.xscale + uiInfo.uiDC.bias;
+        *w *= uiInfo.uiDC.xscale;
+    }
     *y *= uiInfo.uiDC.yscale;
-    *w *= uiInfo.uiDC.xscale;
     *h *= uiInfo.uiDC.yscale;
 }
 

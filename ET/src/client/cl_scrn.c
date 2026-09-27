@@ -444,26 +444,30 @@ This will be called twice if rendering in stereo mode
 */
 void SCR_DrawScreenField(stereoFrame_t stereoFrame)
 {
-    re.BeginFrame(stereoFrame);
+    qboolean uiFullscreen;
 
-    // wide aspect ratio screens need to have the sides cleared
-    // unless they are displaying game renderings
-    /*	if ( cls.state != CA_ACTIVE ) {
-                    if ( cls.glconfig.vidWidth * 480 > cls.glconfig.vidHeight * 640 ) {
-                            re.SetColor( g_color_table[0] );
-                            re.DrawStretchPic( 0, 0, cls.glconfig.vidWidth, cls.glconfig.vidHeight, 0, 0, 0, 0, cls.whiteShader );
-                            re.SetColor( NULL );
-                    }
-            }*/
+    re.BeginFrame(stereoFrame);
 
     if (!uivm) {
         Com_DPrintf("draw screen without UI loaded\n");
         return;
     }
 
+    uiFullscreen = VM_Call(uivm, UI_IS_FULLSCREEN);
+
+    // wide aspect ratio screens need to have the sides cleared
+    // unless they are displaying game renderings
+    if (uiFullscreen || cls.state != CA_ACTIVE) {
+        if (cls.glconfig.vidWidth * 480 > cls.glconfig.vidHeight * 640) {
+            re.SetColor(g_color_table[0]);
+            re.DrawStretchPic(0, 0, cls.glconfig.vidWidth, cls.glconfig.vidHeight, 0, 0, 0, 0, cls.whiteShader);
+            re.SetColor(NULL);
+        }
+    }
+
     // if the menu is going to cover the entire screen, we
     // don't need to render anything under it
-    if (!VM_Call(uivm, UI_IS_FULLSCREEN)) {
+    if (!uiFullscreen) {
         switch (cls.state) {
         default:
             Com_Error(ERR_FATAL, "SCR_DrawScreenField: bad cls.state");

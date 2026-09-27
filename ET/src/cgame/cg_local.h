@@ -412,6 +412,12 @@ extern float zoomTable[ZOOM_MAX_ZOOMS][2];
 //----(SA)	end
 
 typedef enum {
+    PLACE_CENTER,
+    PLACE_LEFT,
+    PLACE_RIGHT
+} screenPlacement_e;
+
+typedef enum {
     LE_MARK,
     LE_EXPLOSION,
     LE_SPRITE_EXPLOSION,
@@ -2291,6 +2297,7 @@ void CG_Letterbox(float xsize, float ysize, qboolean center);
 //
 // cg_drawtools.c
 //
+void CG_SetScreenPlacement(screenPlacement_e hpos);
 void CG_AdjustFrom640(float* x, float* y, float* w, float* h);
 void CG_FillRect(float x, float y, float width, float height, const float* color);
 void CG_HorizontalPercentBar(float x, float y, float width, float height, float percent);

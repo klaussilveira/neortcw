@@ -1827,7 +1827,9 @@ void CG_SpeakerEditorDraw(void)
         y = cg_crosshairY.integer;
         w = h = cg_crosshairSize.value;
 
+        CG_SetScreenPlacement(PLACE_LEFT);
         CG_AdjustFrom640(&x, &y, &w, &h);
+        CG_SetScreenPlacement(PLACE_CENTER);
 
         trap_R_DrawStretchPic(x + 0.5 * (cg.refdef_current->width - w),
         y + 0.5 * (cg.refdef_current->height - h),

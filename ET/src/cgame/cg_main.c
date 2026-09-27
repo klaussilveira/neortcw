@@ -2595,6 +2595,7 @@ void CG_LoadHudMenu()
 
     cgDC.xscale = cgs.screenXScale;
     cgDC.yscale = cgs.screenYScale;
+    cgDC.bias = cgs.screenXBias;
 
     Init_Display(&cgDC);
 
@@ -2681,6 +2682,10 @@ void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum, qbo
     trap_GetGlconfig(&cgs.glconfig);
     cgs.screenXScale = cgs.glconfig.vidWidth / 640.0;
     cgs.screenYScale = cgs.glconfig.vidHeight / 480.0;
+    if (cgs.glconfig.vidWidth * 480 > cgs.glconfig.vidHeight * 640) {
+        cgs.screenXScale = cgs.screenYScale;
+        cgs.screenXBias = 0.5 * (cgs.glconfig.vidWidth - (cgs.glconfig.vidHeight * (640.0 / 480.0)));
+    }
 
     // RF, init the anim scripting
     cgs.animScriptData.soundIndex = CG_SoundScriptPrecache;

@@ -253,7 +253,7 @@ static void CG_CalcVrect(void)
         cg.refdef.width = w;
         cg.refdef.height = h;
 
-        CG_Letterbox((LIMBO_3D_W / 640.f) * 100, (LIMBO_3D_H / 480.f) * 100, qfalse);
+        CG_Letterbox((w / cgs.glconfig.vidWidth) * 100, (h / cgs.glconfig.vidHeight) * 100, qfalse);
         return;
     }
 
@@ -997,6 +997,8 @@ static int CG_CalcFov(void)
 
     if (cg.showGameView) {
         fov_x = fov_y = 60.f;
+    } else if (cgs.glconfig.vidWidth * 480 > cgs.glconfig.vidHeight * 640) {
+        fov_x = atan2(tan(fov_x * M_PI / 360.0f) * 0.75f * cg.refdef_current->width / cg.refdef_current->height, 1) * 360.0f / M_PI;
     }
 
     // Arnout: this is weird... (but ensures square pixel ratio!)
